@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(gh repo:*)",
+      "Bash(python3 .claude/skills/ui-ux-pro-max/scripts/search.py \"AI agent social chat messaging warm friendly\" --design-system -p \"ChatTable\")",
+      "Bash(git checkout:*)",
+      "Bash(cd /d/ChatTable/backend && uv init --name chattable-backend --python 3.10)",
+      "Bash(cd /d/ChatTable/backend && uv add fastapi uvicorn sqlmodel python-multipart websockets)",
+      "Bash(cd /d/ChatTable/backend && mkdir -p app/api app/models app/core app/services)",
+      "Bash(cd /d/ChatTable/backend && touch app/__init__.py app/api/__init__.py app/models/__init__.py app/core/__init__.py app/services/__init__.py app/main.py)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(cd \"D:\\\\ChatTable/backend\" && uv add pydantic-settings)",
+      "Bash(taskkill //F //IM python.exe 2>/dev/null || echo \"Server stopped or not running\")"
+    ]
+  }
+}
