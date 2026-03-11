@@ -11,7 +11,10 @@
       "Bash(git add:*)",
       "Bash(git commit:*)",
       "Bash(cd \"D:\\\\ChatTable/backend\" && uv add pydantic-settings)",
-      "Bash(taskkill //F //IM python.exe 2>/dev/null || echo \"Server stopped or not running\")"
+      "Bash(taskkill //F //IM python.exe 2>/dev/null || echo \"Server stopped or not running\")",
+      "Bash(sleep 3 && curl http://localhost:8000/health)",
+      "Bash(pip install:*)",
+      "Bash(taskkill //F //IM python.exe 2>/dev/null || echo \"Server stopped\")"
     ]
   }
 }
