@@ -1,10 +1,23 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.websocket import manager
+from app.core.database import init_db
+from app.api import agents
 from datetime import datetime
 
-app = FastAPI(title=settings.app_name, debug=settings.debug)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events"""
+    # Startup: initialize database
+    init_db()
+    yield
+    # Shutdown: cleanup if needed
+
+
+app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
 
 # CORS middleware
 app.add_middleware(
@@ -15,9 +28,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include routers
+app.include_router(agents.router)
+
+
 @app.get("/")
 async def root():
     return {"message": "ChatTable API"}
+
 
 @app.get("/health")
 async def health():
@@ -36,11 +54,13 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                 continue
 
             # Echo message for testing
-            await manager.broadcast({
-                "type": "message",
-                "content": data.get("content", ""),
-                "timestamp": datetime.now().isoformat()
-            }, conversation_id)
+            await manager.broadcast(
+                {
+                    "type": "message",
+                    "content": data.get("content", ""),
+                    "timestamp": datetime.now().isoformat(),
+                },
+                conversation_id,
+            )
     except WebSocketDisconnect:
         manager.disconnect(websocket, conversation_id)
-
