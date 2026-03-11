@@ -14,7 +14,14 @@
       "Bash(taskkill //F //IM python.exe 2>/dev/null || echo \"Server stopped or not running\")",
       "Bash(sleep 3 && curl http://localhost:8000/health)",
       "Bash(pip install:*)",
-      "Bash(taskkill //F //IM python.exe 2>/dev/null || echo \"Server stopped\")"
+      "Bash(taskkill //F //IM python.exe 2>/dev/null || echo \"Server stopped\")",
+      "Bash(cd D:/ChatTable && npm create vite@latest frontend -- --template react-ts)",
+      "Bash(cd D:/ChatTable/frontend && npm install)",
+      "Bash(cd D:/ChatTable/frontend && npm install -D tailwindcss postcss autoprefixer && npm install zustand lucide-react)",
+      "Bash(cd D:/ChatTable/frontend && npx tailwindcss init -p)",
+      "Bash(cd D:/ChatTable/frontend && npm exec tailwindcss init -p)",
+      "Bash(cd D:/ChatTable/frontend && ./node_modules/.bin/tailwindcss init -p)",
+      "Bash(cd D:/ChatTable/frontend && timeout 5 npm run dev || echo \"Frontend started successfully\")"
     ]
   }
 }
