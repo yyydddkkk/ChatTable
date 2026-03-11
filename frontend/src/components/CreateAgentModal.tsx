@@ -1,21 +1,13 @@
 import { useState } from 'react';
 import { useAgentStore } from '../stores/agentStore';
 import { X, Loader2 } from 'lucide-react';
+import { MODEL_OPTIONS } from '../config/models';
 
 interface CreateAgentModalProps {
   onClose: () => void;
 }
 
 const AVATAR_OPTIONS = ['🤖', '👤', '🎭', '🧙', '👩‍💻', '👨‍🔬', '🎨', '📚', '🌟', '💡'];
-
-const MODEL_OPTIONS = [
-  { value: 'gpt-4', label: 'GPT-4' },
-  { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-  { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-  { value: 'claude-3-opus', label: 'Claude 3 Opus' },
-  { value: 'claude-3-sonnet', label: 'Claude 3 Sonnet' },
-  { value: 'gemini-pro', label: 'Gemini Pro' },
-];
 
 export default function CreateAgentModal({ onClose }: CreateAgentModalProps) {
   const { createAgent, isLoading } = useAgentStore();
@@ -24,7 +16,7 @@ export default function CreateAgentModal({ onClose }: CreateAgentModalProps) {
     name: '',
     avatar: '🤖',
     description: '',
-    model: 'gpt-4',
+    model: 'gpt-4o',
     api_key: '',
     api_base: '',
     system_prompt: 'You are a helpful AI assistant.',
@@ -143,10 +135,14 @@ export default function CreateAgentModal({ onClose }: CreateAgentModalProps) {
               onChange={(e) => handleChange('model', e.target.value)}
               className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-primary"
             >
-              {MODEL_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
+              {MODEL_OPTIONS.map((group) => (
+                <optgroup key={group.group} label={group.group}>
+                  {group.models.map((model) => (
+                    <option key={model.value} value={model.value}>
+                      {model.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           </div>

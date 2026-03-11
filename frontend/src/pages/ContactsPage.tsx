@@ -4,7 +4,11 @@ import { Plus, MessageCircle, Search } from 'lucide-react';
 import CreateAgentModal from '../components/CreateAgentModal';
 import AgentDetailSidebar from '../components/AgentDetailSidebar';
 
-export default function ContactsPage() {
+interface ContactsPageProps {
+  onStartChat: (agentId: number) => void;
+}
+
+export default function ContactsPage({ onStartChat }: ContactsPageProps) {
   const { agents, selectedAgent, isLoading, error, fetchAgents, selectAgent } = useAgentStore();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -107,7 +111,13 @@ export default function ContactsPage() {
           <div className="text-center">
             <MessageCircle size={64} className="mx-auto text-text-muted mb-4" />
             <h2 className="text-xl font-medium text-text">{selectedAgent.name}</h2>
-            <p className="text-text-muted mt-2">Start a conversation</p>
+            <p className="text-text-muted mt-2 mb-4">{selectedAgent.description || 'Start a conversation'}</p>
+            <button
+              onClick={() => onStartChat(selectedAgent.id)}
+              className="px-6 py-2 bg-primary text-white rounded-lg hover:bg-opacity-90 transition"
+            >
+              Start Chat
+            </button>
           </div>
         ) : (
           <div className="text-center">

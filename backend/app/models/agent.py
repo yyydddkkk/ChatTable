@@ -17,7 +17,7 @@ class Agent(SQLModel, table=True):
     description: Optional[str] = Field(default=None, description="Agent description")
 
     # LLM configuration
-    model: str = Field(default="gpt-4", description="LLM model name")
+    model: str = Field(default="gpt-4o", description="LLM model name")
     api_key: str = Field(description="Encrypted API key")
     api_base: Optional[str] = Field(default=None, description="Custom API base URL")
 
@@ -59,7 +59,7 @@ class AgentCreate(SQLModel):
     name: str
     avatar: Optional[str] = None
     description: Optional[str] = None
-    model: str = "gpt-4"
+    model: str = "gpt-4o"
     api_key: str
     api_base: Optional[str] = None
     system_prompt: str = "You are a helpful AI assistant."

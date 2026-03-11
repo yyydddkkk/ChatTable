@@ -12,7 +12,9 @@ engine = create_engine(
 
 def init_db():
     """Initialize database tables"""
-    from app.models.agent import Agent  # Import to register model
+    from app.models.agent import Agent
+    from app.models.conversation import Conversation
+    from app.models.message import Message
 
     SQLModel.metadata.create_all(engine)
 

@@ -1,20 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useAgentStore, type Agent } from '../stores/agentStore';
 import { X, Edit2, Trash2, Power, Loader2, Save } from 'lucide-react';
+import { MODEL_OPTIONS } from '../config/models';
 
 interface AgentDetailSidebarProps {
   agent: Agent;
   onClose: () => void;
 }
-
-const MODEL_OPTIONS = [
-  { value: 'gpt-4', label: 'GPT-4' },
-  { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
-  { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' },
-  { value: 'claude-3-opus', label: 'Claude 3 Opus' },
-  { value: 'claude-3-sonnet', label: 'Claude 3 Sonnet' },
-  { value: 'gemini-pro', label: 'Gemini Pro' },
-];
 
 export default function AgentDetailSidebar({ agent, onClose }: AgentDetailSidebarProps) {
   const { updateAgent, deleteAgent, toggleActive, isLoading } = useAgentStore();
@@ -131,10 +123,14 @@ export default function AgentDetailSidebar({ agent, onClose }: AgentDetailSideba
               onChange={(e) => setFormData((prev) => ({ ...prev, model: e.target.value }))}
               className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-primary"
             >
-              {MODEL_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
+              {MODEL_OPTIONS.map((group) => (
+                <optgroup key={group.group} label={group.group}>
+                  {group.models.map((model) => (
+                    <option key={model.value} value={model.value}>
+                      {model.label}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
           ) : (
