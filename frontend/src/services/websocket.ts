@@ -1,4 +1,4 @@
-import { WebSocketMessage, MessageHandler } from '../types';
+import type { WebSocketMessage, MessageHandler } from '../types';
 
 class WebSocketService {
   private ws: WebSocket | null = null;
