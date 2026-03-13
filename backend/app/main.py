@@ -16,6 +16,7 @@ from app.services.message_parser import (
 from app.core.decision_engine import decision_engine
 from app.core.length_control import length_controller
 from app.core.topic_detector import topic_detector
+from app.core.memory_manager import memory_manager
 from datetime import datetime
 from typing import Dict
 import json
@@ -149,6 +150,9 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                     db.commit()
                     db.refresh(user_msg)
 
+                    # Add to memory
+                    memory_manager.add_message(db, int(conversation_id), 0, user_msg)
+
                     # Broadcast user message
                     await manager.broadcast(
                         {
@@ -231,12 +235,20 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                             api_base = agent.api_base or None
                             full_response = ""
 
+                            # Get memory context
+                            memory_context = memory_manager.build_context(
+                                db, int(conversation_id), agent.id
+                            )
+                            system_prompt = agent.system_prompt
+                            if memory_context:
+                                system_prompt = f"{system_prompt}\n\n{memory_context}"
+
                             messages_with_length = (
                                 length_controller.inject_length_prompt(
                                     [
                                         {
                                             "role": "system",
-                                            "content": agent.system_prompt,
+                                            "content": system_prompt,
                                         },
                                         {"role": "user", "content": cleaned_content},
                                     ],
