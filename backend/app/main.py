@@ -150,9 +150,6 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                     db.commit()
                     db.refresh(user_msg)
 
-                    # Add to memory
-                    memory_manager.add_message(db, int(conversation_id), 0, user_msg)
-
                     # Broadcast user message
                     await manager.broadcast(
                         {
@@ -167,12 +164,6 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                         conversation_id,
                     )
 
-                    # 检测触发词并调整长度
-                    trigger = length_controller.detect_trigger(cleaned_content)
-                    if trigger:
-                        current_length = max(1, min(5, current_length + trigger))
-                        conversation_lengths[int(conversation_id)] = current_length
-
                     # Get conversation info
                     from app.models.conversation import Conversation
 
@@ -185,8 +176,20 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                     # Get all agents in conversation
                     agents = get_conversation_agents(db, int(conversation_id))
 
+                    # Add to memory
+                    for agent in agents:
+                        memory_manager.add_message(
+                            db, int(conversation_id), agent.id, user_msg
+                        )
+
                     # Parse mentions
                     cleaned_content, mentioned_ids = parse_mentions(content, agents)
+
+                    # 检测触发词并调整长度
+                    trigger = length_controller.detect_trigger(cleaned_content)
+                    if trigger:
+                        current_length = max(1, min(5, current_length + trigger))
+                        conversation_lengths[int(conversation_id)] = current_length
 
                     # 检测话题切换
                     if topic_detector.detect_topic_switch(cleaned_content):

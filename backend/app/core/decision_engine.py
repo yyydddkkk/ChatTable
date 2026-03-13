@@ -18,27 +18,21 @@ class DecisionEngine:
     async def calculate_relevance(self, agent: Agent, message: str) -> float:
         prompt = f"你是一个判断助手。判断用户消息是否与 Agent 相关。Agent 角色: {agent.system_prompt}。用户消息: {message}。请判断相关度 (0-1)，只输出一个数字。"
 
-        decrypted_key = security_manager.decrypt(agent.api_key)
-
         try:
-            response = await llm_service.generate_stream(
+            response = await llm_service.generate(
                 model=agent.model,
-                api_key=decrypted_key,
+                api_key=agent.api_key,
                 messages=[{"role": "user", "content": prompt}],
                 api_base=agent.api_base,
             )
 
-            full_response = ""
-            async for chunk in response:
-                full_response += chunk
-
-            match = re.search(r"0?\.\d+|\d", full_response)
+            match = re.search(r"0?\.\d+|\d", response)
             if match:
                 value = float(match.group())
                 return max(0.0, min(1.0, value))
 
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Relevance calculation error: {e}")
 
         return 0.5
 
