@@ -14,7 +14,9 @@ from app.services.message_parser import (
     get_conversation_agents,
 )
 from app.core.decision_engine import decision_engine
+from app.core.length_control import length_controller
 from datetime import datetime
+from typing import Dict
 import json
 import asyncio
 
@@ -109,12 +111,26 @@ async def health():
 @app.websocket("/ws/{conversation_id}")
 async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
     await manager.connect(websocket, conversation_id)
+    # 会话长度等级（默认3）
+    conversation_lengths: Dict[int, int] = {}
+    current_length = conversation_lengths.get(int(conversation_id), 3)
     try:
         while True:
             data = await websocket.receive_json()
 
             # Handle pong response
             if data.get("type") == "pong":
+                continue
+
+            # Handle set_length
+            if data.get("type") == "set_length":
+                level = data.get("level", 3)
+                level = max(1, min(5, level))
+                conversation_lengths[int(conversation_id)] = level
+                await manager.broadcast(
+                    {"type": "length_set", "level": level},
+                    conversation_id,
+                )
                 continue
 
             # Handle user message
@@ -145,6 +161,12 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                         },
                         conversation_id,
                     )
+
+                    # 检测触发词并调整长度
+                    trigger = length_controller.detect_trigger(cleaned_content)
+                    if trigger:
+                        current_length = max(1, min(5, current_length + trigger))
+                        conversation_lengths[int(conversation_id)] = current_length
 
                     # Get conversation info
                     from app.models.conversation import Conversation
@@ -201,13 +223,23 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                             api_base = agent.api_base or None
                             full_response = ""
 
+                            messages_with_length = (
+                                length_controller.inject_length_prompt(
+                                    [
+                                        {
+                                            "role": "system",
+                                            "content": agent.system_prompt,
+                                        },
+                                        {"role": "user", "content": cleaned_content},
+                                    ],
+                                    current_length,
+                                )
+                            )
+
                             async for chunk in llm_service.generate_stream(
                                 model=agent.model,
                                 api_key=agent.api_key,
-                                messages=[
-                                    {"role": "system", "content": agent.system_prompt},
-                                    {"role": "user", "content": cleaned_content},
-                                ],
+                                messages=messages_with_length,
                                 api_base=api_base,
                             ):
                                 full_response += chunk
