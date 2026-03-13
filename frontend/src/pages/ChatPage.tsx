@@ -5,6 +5,7 @@ import type { Conversation } from '../types';
 import ChatArea from '../components/ChatArea';
 import MessageInput from '../components/MessageInput';
 import GroupAvatar from '../components/GroupAvatar';
+import LengthAdjuster from '../components/LengthAdjuster';
 import type { Message } from '../types';
 
 interface ChatPageProps {
@@ -22,6 +23,7 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
   const streamingAgentIds = useRef<Set<number>>(new Set());
   const [conversationMembers, setConversationMembers] = useState<Agent[]>([]);
   const [isGroupChat, setIsGroupChat] = useState(false);
+  const [lengthLevel, setLengthLevel] = useState(3);
 
   const agent = agentId ? agents.find((a) => a.id === agentId) : null;
 
@@ -105,6 +107,8 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
             return newSet;
           });
         }
+      } else if (data.type === 'length_set') {
+        setLengthLevel(data.level);
       }
     };
 
@@ -149,6 +153,12 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
         <button onClick={onBack} className="text-text-muted hover:text-text">
           ← Back
         </button>
+        <LengthAdjuster level={lengthLevel} onChange={(level) => {
+          setLengthLevel(level);
+          if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'set_length', level }));
+          }
+        }} />
         {isGroupChat ? (
           <GroupAvatar agents={displayAgents} size="md" />
         ) : (
