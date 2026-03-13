@@ -12,8 +12,8 @@ from app.services.llm_service import llm_service
 from app.services.message_parser import (
     parse_mentions,
     get_conversation_agents,
-    should_agent_reply,
 )
+from app.core.decision_engine import decision_engine
 from datetime import datetime
 import json
 import asyncio
@@ -165,8 +165,19 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                     replying_agents = []
                     for agent in agents:
                         is_mentioned = agent.id in mentioned_ids
-                        if should_agent_reply(agent, is_mentioned, is_group):
+
+                        # 使用决策引擎判断
+                        decision = await decision_engine.should_reply(
+                            agent=agent,
+                            message=cleaned_content,
+                            is_mentioned=is_mentioned,
+                        )
+
+                        if decision.should_reply:
                             replying_agents.append(agent)
+                            print(
+                                f"[Decision] Agent {agent.name}: {decision.reason} (confidence: {decision.confidence:.2f})"
+                            )
 
                     if not replying_agents:
                         # No agents need to reply (group chat with no mentions)
