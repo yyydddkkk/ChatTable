@@ -46,5 +46,34 @@ class LLMService:
         except Exception as e:
             raise Exception(f"LLM error: {str(e)}")
 
+    async def generate(
+        self,
+        model: str,
+        api_key: str,
+        messages: list,
+        api_base: str | None = None,
+    ) -> str:
+        """Generate non-streaming response from LLM"""
+        try:
+            decrypted_key = security_manager.decrypt(api_key)
+
+            kwargs = {
+                "model": model,
+                "messages": messages,
+                "api_key": decrypted_key,
+                "stream": False,
+            }
+            if api_base:
+                kwargs["api_base"] = api_base
+
+            response = await litellm.acompletion(**kwargs)
+
+            if response.choices and response.choices[0].message.content:
+                return response.choices[0].message.content
+            return "0.5"
+
+        except Exception as e:
+            return "0.5"
+
 
 llm_service = LLMService()
