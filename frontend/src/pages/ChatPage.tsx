@@ -24,6 +24,7 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
   const [conversationMembers, setConversationMembers] = useState<Agent[]>([]);
   const [isGroupChat, setIsGroupChat] = useState(false);
   const [lengthLevel, setLengthLevel] = useState(3);
+  const [showTopicSwitched, setShowTopicSwitched] = useState(false);
 
   const agent = agentId ? agents.find((a) => a.id === agentId) : null;
 
@@ -109,6 +110,9 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
         }
       } else if (data.type === 'length_set') {
         setLengthLevel(data.level);
+      } else if (data.type === 'topic_switched') {
+        setShowTopicSwitched(true);
+        setTimeout(() => setShowTopicSwitched(false), 3000);
       }
     };
 
@@ -177,6 +181,12 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
           </p>
         </div>
       </div>
+
+      {showTopicSwitched && (
+        <div className="px-4 py-2 bg-primary/10 text-primary text-sm text-center">
+          话题已切换
+        </div>
+      )}
 
       <ChatArea messages={displayMessages} thinkingAgentId={thinkingAgents.size > 0 ? Array.from(thinkingAgents)[0] : undefined} />
       <MessageInput 
