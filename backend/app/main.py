@@ -9,8 +9,66 @@ from app.api import agents, conversations
 from app.models.message import Message
 from app.models.agent import Agent
 from app.services.llm_service import llm_service
+from app.services.message_parser import (
+    parse_mentions,
+    get_conversation_agents,
+    should_agent_reply,
+)
 from datetime import datetime
 import json
+import asyncio
+
+
+async def process_agent_reply(
+    agent: Agent,
+    conversation_id: int,
+    content: str,
+    db: Session,
+):
+    """Process a single agent reply and return the response"""
+    messages = [
+        {"role": "system", "content": agent.system_prompt},
+        {"role": "user", "content": content},
+    ]
+
+    full_response = ""
+    try:
+        api_base = agent.api_base or None
+        async for chunk in llm_service.generate_stream(
+            model=agent.model,
+            api_key=agent.api_key,
+            messages=messages,
+            api_base=api_base,
+        ):
+            full_response += chunk
+
+        # Save agent message
+        agent_msg = Message(
+            conversation_id=conversation_id,
+            sender_type="agent",
+            sender_id=agent.id,
+            content=full_response,
+        )
+        db.add(agent_msg)
+        db.commit()
+        db.refresh(agent_msg)
+
+        return {
+            "type": "agent_done",
+            "agent_id": agent.id,
+            "message": {
+                "id": agent_msg.id,
+                "content": full_response,
+                "sender_type": "agent",
+                "sender_id": agent.id,
+                "created_at": agent_msg.created_at.isoformat(),
+            },
+        }
+    except Exception as e:
+        return {
+            "type": "error",
+            "message": f"Agent error: {str(e)}",
+        }
 
 
 @asynccontextmanager
@@ -62,7 +120,6 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
             # Handle user message
             if data.get("type") == "user_message":
                 content = data.get("content", "")
-                agent_id = data.get("agent_id")
 
                 # Save user message
                 with Session(engine) as db:
@@ -84,84 +141,112 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                                 "content": content,
                                 "sender_type": "user",
                                 "created_at": user_msg.created_at.isoformat(),
-                            }
+                            },
                         },
                         conversation_id,
                     )
 
-                    # Get agent
-                    agent = db.get(Agent, agent_id)
-                    if not agent or not agent.is_active:
+                    # Get conversation info
+                    from app.models.conversation import Conversation
+
+                    conversation = db.get(Conversation, int(conversation_id))
+                    if not conversation:
                         continue
 
-                    # Send thinking status
-                    await manager.broadcast(
-                        {
-                            "type": "agent_thinking",
-                            "agent_id": agent.id,
-                            "agent_name": agent.name,
-                        },
-                        conversation_id,
-                    )
+                    is_group = conversation.type == "group"
 
-                    # Generate agent response
-                    messages = [
-                        {"role": "system", "content": agent.system_prompt},
-                        {"role": "user", "content": content},
-                    ]
+                    # Get all agents in conversation
+                    agents = get_conversation_agents(db, int(conversation_id))
 
-                    full_response = ""
-                    try:
-                        async for chunk in llm_service.generate_stream(
-                            model=agent.model,
-                            api_key=agent.api_key,
-                            messages=messages,
-                            api_base=agent.api_base,
-                        ):
-                            full_response += chunk
+                    # Parse mentions
+                    cleaned_content, mentioned_ids = parse_mentions(content, agents)
+
+                    # Determine which agents should reply
+                    replying_agents = []
+                    for agent in agents:
+                        is_mentioned = agent.id in mentioned_ids
+                        if should_agent_reply(agent, is_mentioned, is_group):
+                            replying_agents.append(agent)
+
+                    if not replying_agents:
+                        # No agents need to reply (group chat with no mentions)
+                        continue
+
+                    # Send thinking status for all agents
+                    for agent in replying_agents:
+                        await manager.broadcast(
+                            {
+                                "type": "agent_thinking",
+                                "agent_id": agent.id,
+                                "agent_name": agent.name,
+                            },
+                            conversation_id,
+                        )
+
+                    # Process replies in parallel
+                    async def stream_agent_reply(agent: Agent):
+                        """Stream reply for a single agent"""
+                        try:
+                            api_base = agent.api_base or None
+                            full_response = ""
+
+                            async for chunk in llm_service.generate_stream(
+                                model=agent.model,
+                                api_key=agent.api_key,
+                                messages=[
+                                    {"role": "system", "content": agent.system_prompt},
+                                    {"role": "user", "content": cleaned_content},
+                                ],
+                                api_base=api_base,
+                            ):
+                                full_response += chunk
+                                await manager.broadcast(
+                                    {
+                                        "type": "agent_message_chunk",
+                                        "agent_id": agent.id,
+                                        "content": chunk,
+                                    },
+                                    conversation_id,
+                                )
+
+                            # Save agent message
+                            agent_msg = Message(
+                                conversation_id=int(conversation_id),
+                                sender_type="agent",
+                                sender_id=agent.id,
+                                content=full_response,
+                            )
+                            db.add(agent_msg)
+                            db.commit()
+                            db.refresh(agent_msg)
+
+                            # Send done event
                             await manager.broadcast(
                                 {
-                                    "type": "agent_message_chunk",
+                                    "type": "agent_done",
                                     "agent_id": agent.id,
-                                    "content": chunk,
+                                    "message": {
+                                        "id": agent_msg.id,
+                                        "content": full_response,
+                                        "sender_type": "agent",
+                                        "sender_id": agent.id,
+                                        "created_at": agent_msg.created_at.isoformat(),
+                                    },
+                                },
+                                conversation_id,
+                            )
+                        except Exception as e:
+                            await manager.broadcast(
+                                {
+                                    "type": "error",
+                                    "message": f"Agent {agent.name} error: {str(e)}",
                                 },
                                 conversation_id,
                             )
 
-                        # Save agent message
-                        agent_msg = Message(
-                            conversation_id=int(conversation_id),
-                            sender_type="agent",
-                            sender_id=agent.id,
-                            content=full_response,
-                        )
-                        db.add(agent_msg)
-                        db.commit()
-                        db.refresh(agent_msg)
-
-                        # Send done event
-                        await manager.broadcast(
-                            {
-                                "type": "agent_done",
-                                "agent_id": agent.id,
-                                "message": {
-                                    "id": agent_msg.id,
-                                    "content": full_response,
-                                    "sender_type": "agent",
-                                    "sender_id": agent.id,
-                                    "created_at": agent_msg.created_at.isoformat(),
-                                }
-                            },
-                            conversation_id,
-                        )
-                    except Exception as e:
-                        await manager.broadcast(
-                            {
-                                "type": "error",
-                                "message": f"Agent error: {str(e)}",
-                            },
-                            conversation_id,
-                        )
+                    # Run all agent replies in parallel
+                    tasks = [stream_agent_reply(agent) for agent in replying_agents]
+                    await asyncio.gather(*tasks)
 
     except WebSocketDisconnect:
         manager.disconnect(websocket, conversation_id)

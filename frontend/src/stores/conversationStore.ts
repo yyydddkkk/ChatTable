@@ -8,7 +8,7 @@ interface ConversationStore {
   isLoading: boolean;
   error: string | null;
 
-  fetchConversations: () => Promise<void>;
+  fetchConversations: () => Promise<Conversation[]>;
   createConversation: (data: { type: string; name: string; members: string }) => Promise<Conversation | null>;
   setCurrentConversation: (conversation: Conversation | null) => void;
   fetchMessages: (conversationId: number) => Promise<void>;
@@ -32,8 +32,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
       if (!response.ok) throw new Error('Failed to fetch conversations');
       const conversations = await response.json();
       set({ conversations, isLoading: false });
+      return conversations;
     } catch (error) {
       set({ error: (error as Error).message, isLoading: false });
+      return [];
     }
   },
 

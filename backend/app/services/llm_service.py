@@ -11,7 +11,7 @@ class LLMService:
         model: str,
         api_key: str,
         messages: list,
-        api_base: str = None,
+        api_base: str | None = None,
     ) -> AsyncGenerator[str, None]:
         """Generate streaming response from LLM"""
         try:
@@ -30,9 +30,18 @@ class LLMService:
 
             # Stream response
             response = await litellm.acompletion(**kwargs)
-            async for chunk in response:
-                if chunk.choices[0].delta.content:
-                    yield chunk.choices[0].delta.content
+
+            # Handle different response types
+            try:
+                async for chunk in response:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        yield chunk.choices[0].delta.content
+            except TypeError:
+                # Fallback for non-async iterables
+                if hasattr(response, "__iter__"):
+                    for chunk in response:
+                        if chunk.choices and chunk.choices[0].delta.content:
+                            yield chunk.choices[0].delta.content
 
         except Exception as e:
             raise Exception(f"LLM error: {str(e)}")
