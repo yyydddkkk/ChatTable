@@ -15,6 +15,7 @@ from app.services.message_parser import (
 )
 from app.core.decision_engine import decision_engine
 from app.core.length_control import length_controller
+from app.core.topic_detector import topic_detector
 from datetime import datetime
 from typing import Dict
 import json
@@ -182,6 +183,13 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
 
                     # Parse mentions
                     cleaned_content, mentioned_ids = parse_mentions(content, agents)
+
+                    # 检测话题切换
+                    if topic_detector.detect_topic_switch(cleaned_content):
+                        await manager.broadcast(
+                            {"type": "topic_switched"},
+                            conversation_id,
+                        )
 
                     # Determine which agents should reply
                     replying_agents = []
