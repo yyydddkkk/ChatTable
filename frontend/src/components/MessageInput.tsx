@@ -9,6 +9,36 @@ interface MentionListProps {
   onSelect: (agent: Agent) => void;
 }
 
+export const COMMANDS = [
+  { name: 'clear', description: '清除聊天记录和上下文', usage: '/clear' },
+  { name: 'help', description: '显示可用命令', usage: '/help' },
+  { name: 'length', description: '设置回复长度 (1-5)', usage: '/length 3' },
+];
+
+export function CommandList({ selectedIndex, onSelect }: { selectedIndex: number; onSelect: (cmd: typeof COMMANDS[0]) => void }) {
+  return (
+    <div className="absolute bottom-full left-0 mb-2 w-64 bg-surface border border-border rounded-lg shadow-lg overflow-hidden z-10">
+      <div className="p-2 text-xs text-text-muted border-b border-border">
+        Commands
+      </div>
+      <div className="max-h-48 overflow-y-auto">
+        {COMMANDS.map((cmd, idx) => (
+          <div
+            key={cmd.name}
+            onClick={() => onSelect(cmd)}
+            className={`px-3 py-2 cursor-pointer transition ${
+              idx === selectedIndex ? 'bg-primary/10' : 'hover:bg-background'
+            }`}
+          >
+            <div className="text-sm font-medium text-text">{cmd.usage}</div>
+            <div className="text-xs text-text-muted">{cmd.description}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function MentionList({ agents, isOpen, selectedIndex, onSelect }: MentionListProps) {
   if (!isOpen || agents.length === 0) return null;
 
@@ -49,12 +79,19 @@ interface MessageInputProps {
 export default function MessageInput({ onSend, onCommand, disabled, agents = [] }: MessageInputProps) {
   const [content, setContent] = useState('');
   const [showMentionList, setShowMentionList] = useState(false);
+  const [showCommandList, setShowCommandList] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
+  const [commandQuery, setCommandQuery] = useState('');
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0);
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const filteredAgents = agents.filter((agent) =>
     agent.name.toLowerCase().includes(mentionQuery.toLowerCase())
+  );
+
+  const filteredCommands = COMMANDS.filter((cmd) =>
+    cmd.name.toLowerCase().includes(commandQuery.toLowerCase())
   );
 
   const handleSend = () => {
@@ -76,6 +113,22 @@ export default function MessageInput({ onSend, onCommand, disabled, agents = [] 
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (showCommandList) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedCommandIndex((prev) => Math.min(prev + 1, filteredCommands.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedCommandIndex((prev) => Math.max(prev - 1, 0));
+      } else if (e.key === 'Enter' && filteredCommands.length > 0) {
+        e.preventDefault();
+        insertCommand(filteredCommands[selectedCommandIndex]);
+      } else if (e.key === 'Escape') {
+        setShowCommandList(false);
+      }
+      return;
+    }
+
     if (showMentionList) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -104,11 +157,35 @@ export default function MessageInput({ onSend, onCommand, disabled, agents = [] 
     setContent(value);
 
     const textBeforeCursor = value.slice(0, cursorPos);
+    
+    // Check for command (starts with / at the beginning)
+    if (textBeforeCursor === '/') {
+      setShowCommandList(true);
+      setCommandQuery('');
+      setSelectedCommandIndex(0);
+      setShowMentionList(false);
+      return;
+    }
+    
+    if (showCommandList && textBeforeCursor.startsWith('/')) {
+      const cmdText = textBeforeCursor.slice(1);
+      const spacePos = cmdText.indexOf(' ');
+      if (spacePos === -1) {
+        setCommandQuery(cmdText.toLowerCase());
+      } else {
+        setCommandQuery(cmdText.slice(0, spacePos).toLowerCase());
+      }
+      setSelectedCommandIndex(0);
+      return;
+    }
+    
+    // Check for mention (@)
     const lastAtPos = textBeforeCursor.lastIndexOf('@');
     
     if (lastAtPos !== -1) {
       const textAfterAt = textBeforeCursor.slice(lastAtPos + 1);
       if (!textAfterAt.includes(' ') && lastAtPos >= 0) {
+        setShowCommandList(false);
         setShowMentionList(true);
         setMentionQuery(textAfterAt);
         setSelectedMentionIndex(0);
@@ -116,8 +193,10 @@ export default function MessageInput({ onSend, onCommand, disabled, agents = [] 
       }
     }
     
+    setShowCommandList(false);
     setShowMentionList(false);
     setMentionQuery('');
+    setCommandQuery('');
   };
 
   const insertMention = (name: string) => {
@@ -140,6 +219,13 @@ export default function MessageInput({ onSend, onCommand, disabled, agents = [] 
     
     setShowMentionList(false);
     setMentionQuery('');
+  };
+
+  const insertCommand = (cmd: typeof COMMANDS[0]) => {
+    setContent(cmd.usage + ' ');
+    setShowCommandList(false);
+    setCommandQuery('');
+    textareaRef.current?.focus();
   };
 
   const handleMentionClick = () => {
@@ -176,6 +262,10 @@ export default function MessageInput({ onSend, onCommand, disabled, agents = [] 
             isOpen={showMentionList}
             selectedIndex={selectedMentionIndex}
             onSelect={(agent) => insertMention(agent.name)}
+          />
+          <CommandList
+            selectedIndex={selectedCommandIndex}
+            onSelect={(cmd) => insertCommand(cmd)}
           />
         </div>
         <button

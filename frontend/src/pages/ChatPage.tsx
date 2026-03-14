@@ -225,6 +225,32 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
         onCommand={(command, args) => {
           if (command === 'clear' && ws && ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ type: 'clear' }));
+          } else if (command === 'help') {
+            // Show help message in chat
+            const helpText = '可用命令:\n/clear - 清除聊天记录\n/help - 显示帮助\n/length [1-5] - 设置回复长度';
+            addMessage({
+              id: Date.now(),
+              conversation_id: currentConversation?.id || 0,
+              sender_type: 'agent',
+              sender_id: 0,
+              content: helpText,
+              created_at: new Date().toISOString(),
+            });
+          } else if (command === 'length') {
+            const level = parseInt(args) || 3;
+            const validLevel = Math.max(1, Math.min(5, level));
+            setLengthLevel(validLevel);
+            if (ws && ws.readyState === WebSocket.OPEN) {
+              ws.send(JSON.stringify({ type: 'set_length', level: validLevel }));
+            }
+            addMessage({
+              id: Date.now(),
+              conversation_id: currentConversation?.id || 0,
+              sender_type: 'agent',
+              sender_id: 0,
+              content: `回复长度已设置为 ${validLevel}`,
+              created_at: new Date().toISOString(),
+            });
           }
         }}
         disabled={thinkingAgents.size > 0} 
