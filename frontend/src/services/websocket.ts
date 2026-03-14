@@ -1,4 +1,5 @@
 import type { WebSocketMessage, MessageHandler } from '../types';
+import { WS_ENDPOINTS } from '../config/api';
 
 class WebSocketService {
   private ws: WebSocket | null = null;
@@ -17,7 +18,7 @@ class WebSocketService {
   private createConnection() {
     if (!this.conversationId) return;
 
-    const wsUrl = `ws://localhost:8000/ws/${this.conversationId}`;
+    const wsUrl = WS_ENDPOINTS.conversation(this.conversationId);
     this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { API_ENDPOINTS } from '../config/api';
 
 export interface Agent {
   id: number;
@@ -33,7 +34,7 @@ interface AgentStore {
   clearError: () => void;
 }
 
-const API_BASE = 'http://localhost:8000/api/v1/agents';
+const API_BASE = API_ENDPOINTS.agents;
 
 export const useAgentStore = create<AgentStore>((set) => ({
   agents: [],

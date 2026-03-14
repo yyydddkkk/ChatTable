@@ -1,12 +1,12 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useAgentStore, type Agent } from '../stores/agentStore';
 import { useConversationStore } from '../stores/conversationStore';
-import type { Conversation } from '../types';
+import type { Conversation, Message } from '../types';
 import ChatArea from '../components/ChatArea';
 import MessageInput from '../components/MessageInput';
 import GroupAvatar from '../components/GroupAvatar';
 import LengthAdjuster from '../components/LengthAdjuster';
-import type { Message } from '../types';
+import { WS_ENDPOINTS } from '../config/api';
 import { Bot, ArrowLeft, Trash2 } from 'lucide-react';
 
 interface ChatPageProps {
@@ -17,8 +17,8 @@ interface ChatPageProps {
 
 export default function ChatPage({ agentId, conversationId, onBack }: ChatPageProps) {
   const { agents } = useAgentStore();
-  const { currentConversation, messages, setCurrentConversation, createConversation, fetchConversations, addMessage } = useConversationStore();
-  const [ws, setWs] = useState<WebSocket | null>(null);
+  const { currentConversation, messages, setCurrentConversation, createConversation, fetchConversations, addMessage, clearMessages } = useConversationStore();
+  const wsRef = useRef<WebSocket | null>(null);
   const [thinkingAgents, setThinkingAgents] = useState<Set<number>>(new Set());
   const [streamingMessages, setStreamingMessages] = useState<Map<number, string>>(new Map());
   const streamingAgentIds = useRef<Set<number>>(new Set());
@@ -67,9 +67,10 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
   useEffect(() => {
     if (!currentConversation) return;
 
-    const websocket = new WebSocket(`ws://localhost:8000/ws/${currentConversation.id}`);
+    const websocket = new WebSocket(WS_ENDPOINTS.conversation(currentConversation.id));
+    wsRef.current = websocket;
 
-    websocket.onmessage = (event) => {
+    const handleMessage = (event: MessageEvent) => {
       const data = JSON.parse(event.data);
 
       if (data.type === 'ping') {
@@ -115,37 +116,73 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
         setShowTopicSwitched(true);
         setTimeout(() => setShowTopicSwitched(false), 3000);
       } else if (data.type === 'cleared') {
-        // Clear local messages
-        setMessages([]);
-        setStreamingMessages(new Map());
-        setThinkingAgents(new Set());
+        clearMessages();
       }
     };
 
-    setWs(websocket);
+    websocket.addEventListener('message', handleMessage);
 
     return () => {
+      websocket.removeEventListener('message', handleMessage);
       websocket.close();
+      wsRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentConversation]);
+  }, [currentConversation, addMessage, clearMessages]);
 
-  const handleSend = (content: string) => {
-    if (ws && ws.readyState === WebSocket.OPEN) {
-      ws.send(JSON.stringify({
+  const handleSend = useCallback((content: string) => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
         type: 'user_message',
         content,
       }));
     }
-  };
+  }, []);
 
-  const handleClear = () => {
-    if (ws && ws.readyState === WebSocket.OPEN && currentConversation) {
-      ws.send(JSON.stringify({ type: 'clear' }));
+  const handleClear = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && currentConversation) {
+      wsRef.current.send(JSON.stringify({ type: 'clear' }));
     }
-  };
+  }, [currentConversation]);
 
-  const getStreamingMessages = (): Message[] => {
+  const handleLengthChange = useCallback((level: number) => {
+    setLengthLevel(level);
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'set_length', level }));
+    }
+  }, []);
+
+  const handleCommand = useCallback((command: string, args: string) => {
+    if (command === 'clear' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'clear' }));
+    } else if (command === 'help') {
+      const helpText = '可用命令:\n/clear - 清除聊天记录\n/help - 显示帮助\n/length [1-5] - 设置回复长度';
+      addMessage({
+        id: Date.now(),
+        conversation_id: currentConversation?.id || 0,
+        sender_type: 'agent',
+        sender_id: 0,
+        content: helpText,
+        created_at: new Date().toISOString(),
+      });
+    } else if (command === 'length') {
+      const level = parseInt(args) || 3;
+      const validLevel = Math.max(1, Math.min(5, level));
+      setLengthLevel(validLevel);
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'set_length', level: validLevel }));
+      }
+      addMessage({
+        id: Date.now(),
+        conversation_id: currentConversation?.id || 0,
+        sender_type: 'agent',
+        sender_id: 0,
+        content: `回复长度已设置为 ${validLevel}`,
+        created_at: new Date().toISOString(),
+      });
+    }
+  }, [addMessage, currentConversation]);
+
+  const getStreamingMessages = useCallback((): Message[] => {
     const streaming: Message[] = [];
     streamingMessages.forEach((content, agentId) => {
       if (content) {
@@ -160,13 +197,19 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
       }
     });
     return streaming;
-  };
+  }, [streamingMessages, currentConversation]);
 
-  const displayMessages = [...messages, ...getStreamingMessages()];
+  const displayMessages = useMemo(
+    () => [...messages, ...getStreamingMessages()],
+    [messages, getStreamingMessages]
+  );
 
-  const displayAgents = isGroupChat && conversationMembers.length > 0 
-    ? conversationMembers 
-    : (agent ? [agent] : []);
+  const displayAgents = useMemo(
+    () => (isGroupChat && conversationMembers.length > 0
+      ? conversationMembers 
+      : (agent ? [agent] : [])),
+    [isGroupChat, conversationMembers, agent]
+  );
 
   return (
     <div className="flex flex-col h-screen bg-background">
@@ -178,12 +221,7 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
         >
           <ArrowLeft size={20} />
         </button>
-        <LengthAdjuster level={lengthLevel} onChange={(level) => {
-          setLengthLevel(level);
-          if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'set_length', level }));
-          }
-        }} />
+        <LengthAdjuster level={lengthLevel} onChange={handleLengthChange} />
         <button
           onClick={handleClear}
           className="p-2 text-text-muted hover:text-red-500 hover:bg-red-50 rounded-lg transition"
@@ -224,37 +262,7 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
       <ChatArea messages={displayMessages} thinkingAgentId={thinkingAgents.size > 0 ? Array.from(thinkingAgents)[0] : undefined} />
       <MessageInput 
         onSend={handleSend}
-        onCommand={(command, args) => {
-          if (command === 'clear' && ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({ type: 'clear' }));
-          } else if (command === 'help') {
-            // Show help message in chat
-            const helpText = '可用命令:\n/clear - 清除聊天记录\n/help - 显示帮助\n/length [1-5] - 设置回复长度';
-            addMessage({
-              id: Date.now(),
-              conversation_id: currentConversation?.id || 0,
-              sender_type: 'agent',
-              sender_id: 0,
-              content: helpText,
-              created_at: new Date().toISOString(),
-            });
-          } else if (command === 'length') {
-            const level = parseInt(args) || 3;
-            const validLevel = Math.max(1, Math.min(5, level));
-            setLengthLevel(validLevel);
-            if (ws && ws.readyState === WebSocket.OPEN) {
-              ws.send(JSON.stringify({ type: 'set_length', level: validLevel }));
-            }
-            addMessage({
-              id: Date.now(),
-              conversation_id: currentConversation?.id || 0,
-              sender_type: 'agent',
-              sender_id: 0,
-              content: `回复长度已设置为 ${validLevel}`,
-              created_at: new Date().toISOString(),
-            });
-          }
-        }}
+        onCommand={handleCommand}
         disabled={thinkingAgents.size > 0} 
         agents={isGroupChat ? displayAgents : []}
       />

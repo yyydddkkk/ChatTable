@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { Conversation, Message } from '../types';
+import { API_ENDPOINTS } from '../config/api';
 
 interface ConversationStore {
   conversations: Conversation[];
@@ -9,14 +10,15 @@ interface ConversationStore {
   error: string | null;
 
   fetchConversations: () => Promise<Conversation[]>;
-  createConversation: (data: { type: string; name: string; members: string }) => Promise<Conversation | null>;
+  createConversation: (data: { type: 'private' | 'group'; name: string; members: string }) => Promise<Conversation | null>;
   setCurrentConversation: (conversation: Conversation | null) => void;
   fetchMessages: (conversationId: number) => Promise<void>;
   addMessage: (message: Message) => void;
+  clearMessages: () => void;
   clearError: () => void;
 }
 
-const API_BASE = 'http://localhost:8000/api/v1/conversations';
+const API_BASE = API_ENDPOINTS.conversations;
 
 export const useConversationStore = create<ConversationStore>((set, get) => ({
   conversations: [],
@@ -39,7 +41,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     }
   },
 
-  createConversation: async (data) => {
+  createConversation: async (data: { type: 'private' | 'group'; name: string; members: string }) => {
     set({ isLoading: true, error: null });
     try {
       const response = await fetch(API_BASE, {
@@ -60,14 +62,14 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     }
   },
 
-  setCurrentConversation: (conversation) => {
+  setCurrentConversation: (conversation: Conversation | null) => {
     set({ currentConversation: conversation, messages: [] });
     if (conversation) {
       get().fetchMessages(conversation.id);
     }
   },
 
-  fetchMessages: async (conversationId) => {
+  fetchMessages: async (conversationId: number) => {
     set({ isLoading: true, error: null });
     try {
       const response = await fetch(`${API_BASE}/${conversationId}/messages`);
@@ -79,8 +81,12 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     }
   },
 
-  addMessage: (message) => {
+  addMessage: (message: Message) => {
     set((state) => ({ messages: [...state.messages, message] }));
+  },
+
+  clearMessages: () => {
+    set({ messages: [] });
   },
 
   clearError: () => {
