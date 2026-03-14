@@ -33,6 +33,9 @@ uv add <package-name>
 # Run linting (ruff)
 uv run ruff check .
 
+# Format code (ruff with black-compatible settings)
+uv run ruff format .
+
 # Run tests
 pytest -v
 ```
@@ -48,25 +51,22 @@ npm install
 # Run development server (http://localhost:5173)
 npm run dev
 
-# Build for production (includes type checking)
+# Build for production (includes type checking via tsc -b)
 npm run build
 
 # Preview production build
 npm run preview
 
-# Lint code
+# Lint code (ESLint)
 npm run lint
 
 # Type check only
 npx tsc --noEmit
-
-# Run tests
-npm run test
 ```
 
 **Running a Single Test**:
 - Backend: `pytest -v path/to/test_file.py::test_name`
-- Frontend: `npm run test -- path/to/test_file.ts`
+- Frontend: Not configured yet (no test script in package.json)
 
 ---
 
@@ -86,7 +86,7 @@ from app.models.agent import Agent, AgentCreate
 from app.core.database import get_db
 ```
 
-**Formatting**: Follow PEP 8. Max line length: 88 characters (ruff default). Use Black formatting.
+**Formatting**: Follow PEP 8. Max line length: 88 characters (ruff default). Use `ruff format` for formatting.
 
 **Naming**: snake_case (functions/vars), PascalCase (classes), UPPER_SNAKE_CASE (constants), `_` prefix (private methods).
 
@@ -114,11 +114,18 @@ import { agentService } from '../services/agent';
 
 **Formatting**: Use Prettier (run `npm run lint` to check). Max line length: 100 characters.
 
+**TypeScript Config**: Strict mode is enabled. Key settings:
+- `strict: true` - full type checking
+- `noUnusedLocals: true` - error on unused locals
+- `noUnusedParameters: true` - error on unused params
+- `verbatimModuleSyntax: true` - require `import type` for types
+- `erasableSyntaxOnly: true` - no legacy TypeScript syntax
+
 **Naming**: camelCase (vars/functions), PascalCase (components/types), camelCase.ts or kebab-case.ts (files).
 
-**TypeScript**: Define interfaces for all data structures, avoid `any`, export types separately.
+**TypeScript**: Define interfaces for all data structures, avoid `any`, export types separately. Use `import type` for type-only imports.
 
-**React**: Functional components with hooks, destructure props, use generics where applicable. Use `FC` type from React when needed.
+**React**: Functional components with hooks, destructure props, use generics where applicable.
 
 **State**: Use Zustand, keep stores focused per domain. Name stores with `use` prefix: `useAgentStore`.
 
@@ -169,8 +176,9 @@ frontend/
 ## Important Notes
 
 - **Package Managers**: `uv` for Python (NOT pip), `npm` for Node.js
-- **Tailwind v4**: Uses `@import` syntax, not `@tailwind` directives
+- **Tailwind v4**: Uses `@import "tailwindcss";` syntax, not `@tailwind` directives. Uses CSS variables for theming.
 - **Database**: SQLite at `backend/chattable.db` - back up before migrations
 - **Hot Reload**: Backend uses uvicorn `--reload`, frontend uses Vite
-- **Testing**: Write tests for new features. Backend uses pytest, frontend uses Vitest.
+- **Testing**: Write tests for new features. Backend uses pytest, frontend uses Vitest (not yet configured).
 - **Environment**: Use `.env` files for local config, never commit secrets
+- **ESLint**: Frontend uses flat config (`eslint.config.js`), React hooks plugin enabled.

@@ -32,7 +32,7 @@ export default function CreateGroupModal({ onClose, onCreateGroup }: CreateGroup
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-surface rounded-xl w-full max-w-md mx-4 shadow-xl">
-        <div className="flex items-center justify-between p-4 border-b border-border">
+        <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5 text-primary" />
             <h2 className="text-lg font-semibold text-text">Create Group Chat</h2>
@@ -50,7 +50,8 @@ export default function CreateGroupModal({ onClose, onCreateGroup }: CreateGroup
               value={groupName}
               onChange={(e) => setGroupName(e.target.value)}
               placeholder="Enter group name..."
-              className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-primary"
+              className="w-full px-4 py-2 bg-background rounded-lg focus:outline-none"
+              style={{ border: '1px solid rgba(0,0,0,0.06)' }}
             />
           </div>
 
@@ -68,9 +69,14 @@ export default function CreateGroupModal({ onClose, onCreateGroup }: CreateGroup
                     onClick={() => toggleMember(agent.id)}
                     className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition ${
                       selectedMembers.includes(agent.id)
-                        ? 'bg-primary/10 border border-primary'
-                        : 'bg-background hover:bg-background/80 border border-transparent'
+                        ? 'bg-primary/10'
+                        : 'bg-background hover:bg-background/80'
                     }`}
+                    style={{
+                      border: selectedMembers.includes(agent.id)
+                        ? '1px solid var(--color-primary)'
+                        : '1px solid transparent',
+                    }}
                   >
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                       <span className="text-lg">{agent.avatar || agent.name.charAt(0)}</span>
@@ -91,7 +97,7 @@ export default function CreateGroupModal({ onClose, onCreateGroup }: CreateGroup
           </div>
         </div>
 
-        <div className="p-4 border-t border-border flex justify-end gap-3">
+        <div className="p-4 flex justify-end gap-3" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
           <button
             onClick={onClose}
             className="px-4 py-2 text-text-muted hover:text-text transition"

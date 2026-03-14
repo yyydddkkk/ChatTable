@@ -30,7 +30,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   fetchConversations: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(API_BASE);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch(API_BASE, { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (!response.ok) throw new Error('Failed to fetch conversations');
       const conversations = await response.json();
       set({ conversations, isLoading: false });
@@ -44,11 +47,15 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   createConversation: async (data: { type: 'private' | 'group'; name: string; members: string }) => {
     set({ isLoading: true, error: null });
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
       const response = await fetch(API_BASE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
       if (!response.ok) throw new Error('Failed to create conversation');
       const conversation = await response.json();
       set((state) => ({
@@ -72,7 +79,10 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
   fetchMessages: async (conversationId: number) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(`${API_BASE}/${conversationId}/messages`);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch(`${API_BASE}/${conversationId}/messages`, { signal: controller.signal });
+      clearTimeout(timeoutId);
       if (!response.ok) throw new Error('Failed to fetch messages');
       const messages = await response.json();
       set({ messages, isLoading: false });

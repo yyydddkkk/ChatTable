@@ -8,11 +8,14 @@ from app.core.database import init_db, engine
 from app.api.v1.router import api_router
 from app.models.message import Message
 from app.models.agent import Agent
+from app.models.provider import Provider
 from app.services.llm_service import llm_service
+from app.core.security import security_manager
 from app.services.message_parser import (
     parse_mentions,
     get_conversation_agents,
 )
+from app.services.agent_service import AgentService
 from app.core.decision_engine import decision_engine
 from app.core.length_control import length_controller
 from app.core.topic_detector import topic_detector
@@ -33,16 +36,24 @@ async def process_agent_reply(
 ):
     """Process a single agent reply and return the response"""
     messages = [
-        {"role": "system", "content": agent.system_prompt},
+        {"role": "system", "content": AgentService.build_system_prompt(agent)},
         {"role": "user", "content": content},
     ]
 
     full_response = ""
     try:
-        api_base = agent.api_base or None
+        # Resolve provider credentials
+        provider = db.get(Provider, agent.provider_id) if agent.provider_id else None
+        if not provider:
+            return {
+                "type": "error",
+                "message": f"Agent {agent.name} 未配置服务商",
+            }
+        api_key = provider.api_key
+        api_base = provider.api_base or None
         async for chunk in llm_service.generate_stream(
             model=agent.model,
-            api_key=agent.api_key,
+            api_key=api_key,
             messages=messages,
             api_base=api_base,
         ):
@@ -240,8 +251,14 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
 
                     # Determine which agents should reply
                     replying_agents = []
+                    # If someone is @mentioned, only those agents reply
+                    has_mentions = len(mentioned_ids) > 0 and is_group
                     for agent in agents:
                         is_mentioned = agent.id in mentioned_ids
+
+                        if has_mentions and not is_mentioned:
+                            # Skip non-mentioned agents when there are explicit mentions
+                            continue
 
                         # 使用决策引擎判断
                         decision = await decision_engine.should_reply(
@@ -279,14 +296,26 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                     async def stream_agent_reply(agent: Agent):
                         """Stream reply for a single agent"""
                         try:
-                            api_base = agent.api_base or None
+                            # Resolve provider credentials
+                            provider = db.get(Provider, agent.provider_id) if agent.provider_id else None
+                            if not provider:
+                                await manager.broadcast(
+                                    {
+                                        "type": "error",
+                                        "message": f"Agent {agent.name} 未配置服务商",
+                                    },
+                                    conversation_id,
+                                )
+                                return
+                            api_key = provider.api_key
+                            api_base = provider.api_base or None
                             full_response = ""
 
                             # Get memory context
                             memory_context = memory_manager.build_context(
                                 db, int(conversation_id), agent.id
                             )
-                            system_prompt = agent.system_prompt
+                            system_prompt = AgentService.build_system_prompt(agent)
                             if memory_context:
                                 system_prompt = f"{system_prompt}\n\n{memory_context}"
 
@@ -305,7 +334,7 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
 
                             async for chunk in llm_service.generate_stream(
                                 model=agent.model,
-                                api_key=agent.api_key,
+                                api_key=api_key,
                                 messages=messages_with_length,
                                 api_base=api_base,
                             ):

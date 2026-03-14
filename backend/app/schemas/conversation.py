@@ -1,17 +1,25 @@
 from typing import Optional
 from datetime import datetime
-from sqlmodel import SQLModel, Field
+from pydantic import BaseModel, Field
 
 
-class Conversation(SQLModel, table=True):
-    __tablename__ = "conversations"
-
-    id: Optional[int] = Field(default=None, primary_key=True)
+class ConversationBase(BaseModel):
     type: str = Field(default="private", description="Conversation type: private/group")
     name: str = Field(max_length=200, description="Conversation name")
     members: str = Field(description="JSON string of agent IDs")
-    last_message_at: Optional[datetime] = Field(default=None)
-    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class ConversationCreate(ConversationBase):
+    pass
+
+
+class ConversationResponse(BaseModel):
+    id: int
+    type: str
+    name: str
+    members: str
+    last_message_at: Optional[datetime]
+    created_at: datetime
 
     class Config:
         from_attributes = True

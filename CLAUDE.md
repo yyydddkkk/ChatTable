@@ -4,202 +4,94 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ChatTable is an AI Agent social chat application where users create AI agents as "friends" and chat with them privately or in groups. Each agent has unique personality, memory, and knowledge base. The project uses a WeChat-inspired warm social design style.
+ChatTable is an AI Agent social chat application where users create AI agents as "friends" and chat with them privately or in groups. Each agent has unique personality, memory, and knowledge base. WeChat-inspired warm social design style.
 
-**Current Status**: Step 1 - Basic framework implementation (FastAPI backend + React frontend + WebSocket communication)
+**Current Status**: Steps 1-7 implemented (framework, agent CRUD, private/group chat, decision engine, length control, topic detection, memory system in progress).
 
 ## Tech Stack
 
-**Backend**:
-- Python 3.10+ with FastAPI
-- SQLModel (ORM + Pydantic models)
-- SQLite database (chattable.db)
-- WebSocket for real-time communication
-- Package manager: `uv`
-
-**Frontend**:
-- React 19 + TypeScript
-- Vite build tool
-- Tailwind CSS v4
-- Zustand for state management
-- Lucide Icons
+- **Backend**: Python 3.10+ / FastAPI / SQLModel / SQLite (`backend/chattable.db`) / WebSocket
+- **Frontend**: React 19 + TypeScript / Vite / Tailwind CSS v4 / Zustand / Lucide Icons
+- **Package managers**: `uv` for Python (NOT pip), `npm` for frontend
 
 ## Development Commands
 
-### Backend
-
 ```bash
+# Backend
 cd backend
+uv sync                                                          # install deps
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000 # dev server
+uv run ruff check .                                              # lint
+uv run ruff format .                                             # format
+pytest -v                                                        # tests
+pytest -v path/to/test_file.py::test_name                        # single test
 
-# Install dependencies (using uv)
-uv sync
-
-# Run development server
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-
-# Run without reload
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
-
-# Add new dependency
-uv add <package-name>
-```
-
-### Frontend
-
-```bash
+# Frontend
 cd frontend
-
-# Install dependencies
-npm install
-
-# Run development server (http://localhost:5173)
-npm run dev
-
-# Build for production
-npm run build
-
-# Preview production build
-npm run preview
-
-# Lint code
-npm run lint
+npm install          # install deps
+npm run dev          # dev server (http://localhost:5173)
+npm run build        # production build (includes tsc -b)
+npm run lint         # ESLint
+npx tsc --noEmit     # type check only
 ```
 
 ## Architecture
 
-### Backend Structure
+### Backend Layers
 
-```
-backend/
-├── app/
-│   ├── main.py              # FastAPI app entry, WebSocket endpoint
-│   ├── api/                 # API route handlers
-│   │   └── agents.py        # Agent CRUD endpoints
-│   ├── core/                # Core functionality
-│   │   ├── config.py        # Settings (host, port, encryption_key)
-│   │   ├── database.py      # SQLModel database initialization
-│   │   ├── security.py      # API key encryption/decryption
-│   │   └── websocket.py     # WebSocket connection manager
-│   ├── models/              # SQLModel data models
-│   │   └── agent.py         # Agent, AgentCreate, AgentUpdate, AgentResponse
-│   └── services/            # Business logic (future modules)
-├── pyproject.toml           # Python dependencies
-└── chattable.db             # SQLite database file
-```
+The backend follows a layered architecture: **Routes → Services → Repositories → Models**.
+
+- `app/main.py` — FastAPI app entry + WebSocket endpoint (`/ws/{conversation_id}`). All WebSocket message handling (user messages, commands, agent reply orchestration) lives here.
+- `app/api/v1/endpoints.py` — REST endpoints. Single flat file, all routes under `/api/v1/`.
+- `app/api/v1/router.py` — Mounts endpoints with `/api/v1` prefix.
+- `app/api/dependencies.py` — FastAPI dependency injection (`get_db` session provider).
+- `app/services/` — Business logic layer. `agent_service` and `conversation_service` are singleton instances (not classes you instantiate).
+- `app/repositories/` — Data access layer with base repository pattern (`base.py` provides generic CRUD).
+- `app/models/` — SQLModel ORM models (database tables): `Agent`, `Conversation`, `Message`, `Memory`.
+- `app/schemas/` — Pydantic schemas for API request/response (separate from ORM models).
+- `app/core/` — Cross-cutting concerns:
+  - `config.py` — Settings (host, port, encryption_key), logging setup
+  - `database.py` — SQLModel engine + `init_db()`
+  - `security.py` — API key encryption/decryption
+  - `websocket.py` — ConnectionManager for WebSocket connections
+  - `decision_engine.py` — Agent reply decision logic (5-layer willingness calculation)
+  - `length_control.py` — Response length management (5 levels + trigger word detection)
+  - `topic_detector.py` — Topic switch detection
+  - `memory_manager.py` — Memory context building and management
+- `app/services/llm_service.py` — LLM streaming integration (used in WebSocket handler).
+- `app/services/message_parser.py` — @mention parsing and conversation agent lookup.
 
 ### Frontend Structure
 
-```
-frontend/
-├── src/
-│   ├── main.tsx             # React entry point
-│   ├── App.tsx              # Root component (currently shows ContactsPage)
-│   ├── components/          # Reusable UI components
-│   │   ├── CreateAgentModal.tsx
-│   │   └── AgentDetailSidebar.tsx
-│   ├── pages/               # Page components
-│   │   └── ContactsPage.tsx # Agent cards grid with three-column layout
-│   ├── stores/              # Zustand state management
-│   │   └── agentStore.ts    # Agent state
-│   ├── services/            # API and WebSocket services
-│   │   └── websocket.ts
-│   └── types/               # TypeScript type definitions
-│       └── index.ts
-├── package.json
-└── vite.config.ts
-```
+- `App.tsx` — Root component managing view state (contacts vs chat), agent/conversation selection.
+- `pages/` — `ContactsPage` (agent grid), `ChatPage` (chat interface).
+- `stores/` — Zustand stores: `agentStore.ts` (agents CRUD), `conversationStore.ts` (conversations + messages).
+- `components/` — UI components: `MainLayout`, `SessionList`, `ChatArea`, `ChatHeader`, `MessageInput`, `CreateAgentModal`, `CreateGroupModal`, `AgentDetailSidebar`, `MentionSelector`, `LengthAdjuster`, `Dropdown`, `GroupAvatar`.
+- `services/websocket.ts` — WebSocket client with auto-reconnect (exponential backoff).
+- `config/api.ts` — API endpoint URLs. `config/commands.ts` — Chat slash commands. `config/models.ts` — Model definitions.
+- `types/index.ts` — Shared TypeScript interfaces.
+- `lib/` — Utilities: `agentPalette.ts`, `RadarChart.tsx`, `Icon.tsx`.
 
-### Key Design Patterns
+### Key Patterns
 
-**WebSocket Communication**:
-- Backend: ConnectionManager manages multiple WebSocket connections per conversation
-- Heartbeat: 30-second ping/pong to keep connections alive
-- Frontend: Auto-reconnect with exponential backoff (1s → 2s → 4s → 8s)
-- Event types: `agent_thinking`, `agent_message`, `agent_done`, `topic_switched`, `error`
+**WebSocket flow** (in `main.py`): User message → save to DB → broadcast → get conversation agents → decision engine filters who replies → length control injects prompt → agents stream replies in parallel via `asyncio.gather` → chunks broadcast as `agent_message_chunk` → final `agent_done` with saved message.
 
-**Agent Model**:
-- API keys are encrypted before storage using `cryptography` library
-- AgentResponse schema excludes API key from responses
-- Supports custom model configuration (model name, api_base, system_prompt)
-- Response behavior: speed multiplier, reply probability, default length (1-5)
+**WebSocket event types**: `user_message`, `agent_thinking`, `agent_message_chunk`, `agent_done`, `topic_switched`, `length_set`, `cleared`, `error`.
 
-**API Structure**:
-- Base path: `/api/v1/`
-- CORS enabled for `http://localhost:5173` (Vite dev server)
-- RESTful endpoints for Agent CRUD
-- WebSocket endpoint: `/ws/{conversation_id}`
+**WebSocket commands**: `user_message`, `set_length`, `clear`, `pong`.
 
-## Implementation Roadmap
+**API key security**: Encrypted before storage via `app.core.security.encrypt_api_key()`. `AgentResponse` schema excludes API key. Never log or expose keys.
 
-The project follows a 10-step implementation plan (see `docs/plans/2026-03-10-chattable-design.md`):
+## Styling
 
-1. ✅ Basic framework (FastAPI + React + WebSocket)
-2. ✅ Agent CRUD
-3. 🔄 Private chat basics (in progress)
-4. Group chat basics
-5. Decision engine (agent willingness calculation)
-6. Length control (5 levels + natural language triggers)
-7. Topic detection
-8. Memory system (working + short-term)
-9. Long-term memory (ChromaDB + forgetting mechanism)
-10. Knowledge base (document upload + RAG)
+- Tailwind CSS v4: uses `@import "tailwindcss"` syntax (not `@tailwind` directives), CSS variables for theming.
+- Color scheme: Primary `#07C160` (WeChat green), warm beige backgrounds.
+- Soft UI: rounded corners, subtle shadows, 200-300ms transitions.
 
-## Database
+## TypeScript Config
 
-**Location**: `backend/chattable.db` (SQLite)
-
-**Current Tables**:
-- `agents`: AI agent configurations with encrypted API keys
-
-**Planned Tables** (see design doc):
-- `conversations`: Chat sessions (private/group)
-- `messages`: Chat messages with sender info
-- `memories`: Three-tier memory system
-- `knowledge_bases`: Document metadata for RAG
-
-## Important Notes
-
-**Security**:
-- API keys are encrypted using `app.core.security.encrypt_api_key()` before storage
-- Never log or expose API keys in responses
-- Encryption key is in `app.core.config.settings.encryption_key`
-
-**WebSocket**:
-- Each conversation has its own WebSocket connection
-- Use `manager.broadcast()` to send messages to all clients in a conversation
-- Handle `WebSocketDisconnect` to clean up connections
-
-**Frontend State**:
-- Zustand stores are in `src/stores/`
-- Agent data fetched from `/api/v1/agents`
-- WebSocket service handles real-time updates
-
-**Styling**:
-- Tailwind CSS v4 (uses `@import` syntax in CSS files)
-- Color scheme: Primary #07C160 (WeChat green), warm beige backgrounds
-- Soft UI style: rounded corners, subtle shadows, 200-300ms transitions
-
-**Python Environment**:
-- Use `uv` for all package management (not pip)
-- Virtual environment is in `backend/.venv/`
-- Python version specified in `backend/.python-version`
-
-## Future Modules (Not Yet Implemented)
-
-These are planned but not yet built:
-- `app/services/decision_engine.py` - Agent reply decision logic
-- `app/services/length_control.py` - Response length management
-- `app/services/memory_manager.py` - Three-tier memory system
-- `app/services/topic_detector.py` - Topic switch detection
-- `app/services/knowledge_base.py` - RAG with ChromaDB
-- LiteLLM integration for unified model API calls
-- APScheduler for memory compression tasks
+Strict mode enabled: `strict: true`, `noUnusedLocals`, `noUnusedParameters`, `verbatimModuleSyntax` (requires `import type`), `erasableSyntaxOnly`.
 
 ## Design Reference
 
-Full design specifications are in `docs/plans/2026-03-10-chattable-design.md`, including:
-- Detailed UI/UX specifications (colors, spacing, components)
-- Five-layer decision engine algorithm
-- Memory compression and forgetting mechanisms
-- Knowledge base RAG implementation
-- Complete API endpoint specifications
+Full design specs in `docs/plans/2026-03-10-chattable-design.md` (UI/UX, decision engine algorithm, memory mechanisms, knowledge base RAG, API specs).

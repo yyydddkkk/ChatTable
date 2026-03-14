@@ -4,7 +4,7 @@ export interface WebSocketMessage {
   timestamp?: string;
   agent_id?: string;
   agent_name?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export type MessageHandler = (message: WebSocketMessage) => void;

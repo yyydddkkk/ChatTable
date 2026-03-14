@@ -1,16 +1,13 @@
-from app.models.agent import Agent, AgentCreate, AgentUpdate, AgentResponse
-from app.models.conversation import Conversation, ConversationCreate, ConversationResponse
-from app.models.message import Message, MessageCreate, MessageResponse
+from app.models.agent import Agent
+from app.models.conversation import Conversation
+from app.models.message import Message
+from app.models.provider import Provider
+from app.models.app_settings import AppSettings
 
 __all__ = [
     "Agent",
-    "AgentCreate",
-    "AgentUpdate",
-    "AgentResponse",
     "Conversation",
-    "ConversationCreate",
-    "ConversationResponse",
     "Message",
-    "MessageCreate",
-    "MessageResponse",
+    "Provider",
+    "AppSettings",
 ]

@@ -1,12 +1,16 @@
 export const API_CONFIG = {
-  baseUrl: 'http://localhost:8000',
+  baseUrl: '',
   apiVersion: 'v1',
   wsProtocol: 'ws',
 } as const;
 
 export const API_ENDPOINTS = {
-  agents: `${API_CONFIG.baseUrl}/api/${API_CONFIG.apiVersion}/agents`,
-  conversations: `${API_CONFIG.baseUrl}/api/${API_CONFIG.apiVersion}/conversations`,
+  agents: `/api/${API_CONFIG.apiVersion}/agents`,
+  generatePersona: `/api/${API_CONFIG.apiVersion}/agents/generate`,
+  conversations: `/api/${API_CONFIG.apiVersion}/conversations`,
+  optimizePrompt: `/api/${API_CONFIG.apiVersion}/agents/optimize-prompt`,
+  providers: `/api/${API_CONFIG.apiVersion}/providers`,
+  settings: `/api/${API_CONFIG.apiVersion}/settings`,
 } as const;
 
 export const WS_ENDPOINTS = {

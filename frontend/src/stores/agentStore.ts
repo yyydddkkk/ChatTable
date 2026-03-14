@@ -7,8 +7,12 @@ export interface Agent {
   avatar?: string;
   description?: string;
   model: string;
-  api_base?: string;
+  provider_id?: number;
   system_prompt: string;
+  personality?: string;
+  background?: string;
+  skills?: string;
+  tags?: string;
   response_speed: number;
   reply_probability: number;
   default_length: number;

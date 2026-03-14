@@ -1,51 +1,55 @@
+import type { FC } from 'react';
 import type { Agent } from '../stores/agentStore';
+import { getAgentPalette, getAvatarIcon } from '../lib/agentPalette';
 
 interface GroupAvatarProps {
   agents: Agent[];
-  size?: 'sm' | 'md' | 'lg';
+  size?: number | 'sm' | 'md' | 'lg';
 }
 
-export default function GroupAvatar({ agents, size = 'md' }: GroupAvatarProps) {
-  const sizeClasses = {
-    sm: 'w-8 h-8 text-xs',
-    md: 'w-10 h-10 text-sm',
-    lg: 'w-12 h-12 text-base',
-  };
+const sizeMap = {
+  sm: 32,
+  md: 40,
+  lg: 48,
+};
 
-  const displayAgents = agents.slice(0, 4);
-  const remaining = agents.length - 4;
-
-  if (displayAgents.length <= 2) {
-    return (
-      <div className={`flex -space-x-2 ${sizeClasses[size]}`}>
-        {displayAgents.map((agent, idx) => (
+export const GroupAvatar: FC<GroupAvatarProps> = ({ agents, size = 40 }) => {
+  const sizeValue = typeof size === 'number' ? size : sizeMap[size];
+  
+  return (
+    <div
+      style={{
+        width: sizeValue,
+        height: sizeValue,
+        borderRadius: sizeValue * 0.28,
+        background: '#EBE8E2',
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: 1.5,
+        padding: 3,
+        flexShrink: 0,
+        overflow: 'hidden',
+      }}
+    >
+      {agents.slice(0, 4).map((agent) => {
+        const palette = getAgentPalette(agent.id);
+        const AvatarIcon = getAvatarIcon(agent.avatar);
+        return (
           <div
             key={agent.id}
-            className={`${sizeClasses[size]} rounded-full bg-primary/10 flex items-center justify-center border-2 border-surface overflow-hidden`}
-            style={{ zIndex: displayAgents.length - idx }}
+            style={{
+              background: palette.bg,
+              borderRadius: 3,
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
-            <span>{agent.avatar || agent.name.charAt(0)}</span>
+            <AvatarIcon size={sizeValue * 0.22} style={{ color: palette.dot }} />
           </div>
-        ))}
-      </div>
-    );
-  }
-
-  return (
-    <div className={`grid grid-cols-2 gap-0.5 ${sizeClasses[size]}`}>
-      {displayAgents.map((agent) => (
-        <div
-          key={agent.id}
-          className={`${sizeClasses[size]} rounded-full bg-primary/10 flex items-center justify-center overflow-hidden`}
-        >
-          <span>{agent.avatar || agent.name.charAt(0)}</span>
-        </div>
-      ))}
-      {remaining > 0 && (
-        <div className={`${sizeClasses[size]} rounded-full bg-primary/20 flex items-center justify-center text-primary font-medium`}>
-          +{remaining}
-        </div>
-      )}
+        );
+      })}
     </div>
   );
-}
+};

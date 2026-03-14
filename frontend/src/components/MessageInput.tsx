@@ -1,7 +1,7 @@
 import { useState, useRef, type KeyboardEvent, type ChangeEvent } from 'react';
-import { Send, AtSign } from 'lucide-react';
+import { Send } from 'lucide-react';
 import type { Agent } from '../stores/agentStore';
-import { COMMANDS } from '../config/commands';
+import { COMMANDS, type Command } from '../config/commands';
 
 interface MentionListProps {
   agents: Agent[];
@@ -10,25 +10,33 @@ interface MentionListProps {
   onSelect: (agent: Agent) => void;
 }
 
-export function CommandList({ isOpen, selectedIndex, onSelect }: { isOpen: boolean; selectedIndex: number; onSelect: (cmd: typeof COMMANDS[0]) => void }) {
+export function CommandList({ isOpen, selectedIndex, onSelect }: { isOpen: boolean; selectedIndex: number; onSelect: (cmd: Command) => void }) {
   if (!isOpen) return null;
   
   return (
-    <div className="absolute bottom-full left-0 mb-2 w-72 bg-surface border border-border rounded-lg shadow-lg overflow-hidden z-10">
-      <div className="p-2 text-xs text-text-muted border-b border-border">
-        Commands
+    <div 
+      className="absolute bottom-full left-0 mb-2 w-72 rounded-2xl overflow-hidden z-10"
+      style={{
+        background: '#fff',
+        border: '1px solid rgba(0,0,0,0.06)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+      }}
+    >
+      <div className="p-3 text-xs font-medium text-[--color-text-subtle]" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+        命令列表
       </div>
       <div className="max-h-48 overflow-y-auto">
         {COMMANDS.map((cmd, idx) => (
           <div
             key={cmd.name}
             onClick={() => onSelect(cmd)}
-            className={`px-3 py-2 cursor-pointer transition ${
-              idx === selectedIndex ? 'bg-primary/10' : 'hover:bg-background'
-            }`}
+            className="px-4 py-3 cursor-pointer transition-all duration-150"
+            style={{
+              background: idx === selectedIndex ? 'rgba(234,120,80,0.1)' : 'transparent',
+            }}
           >
-            <span className="text-sm font-medium text-text">{cmd.usage}</span>
-            <span className="text-sm text-text-muted ml-2">{cmd.description}</span>
+            <span className="text-sm font-semibold text-[--color-text]">{cmd.usage}</span>
+            <span className="text-sm text-[--color-text-muted] ml-2">{cmd.description}</span>
           </div>
         ))}
       </div>
@@ -40,24 +48,35 @@ export function MentionList({ agents, isOpen, selectedIndex, onSelect }: Mention
   if (!isOpen || agents.length === 0) return null;
 
   return (
-    <div className="absolute bottom-full left-0 mb-2 w-64 bg-surface border border-border rounded-lg shadow-lg overflow-hidden z-10">
-      <div className="p-2 text-xs text-text-muted border-b border-border">
-        Mention someone
+    <div 
+      className="absolute bottom-full left-0 mb-2 w-64 rounded-2xl overflow-hidden z-10"
+      style={{
+        background: '#fff',
+        border: '1px solid rgba(0,0,0,0.06)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+      }}
+    >
+      <div className="p-3 text-xs font-medium text-[--color-text-subtle]" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+        提及成员
       </div>
       <div className="max-h-48 overflow-y-auto">
         {agents.map((agent, idx) => (
           <div
             key={agent.id}
             onClick={() => onSelect(agent)}
-            className={`flex items-center gap-2 px-3 py-2 cursor-pointer transition ${
-              idx === selectedIndex ? 'bg-primary/10' : 'hover:bg-background'
-            }`}
+            className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-all duration-150"
+            style={{
+              background: idx === selectedIndex ? 'rgba(234,120,80,0.1)' : 'transparent',
+            }}
           >
-            <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center">
-              <span className="text-xs">{agent.avatar || agent.name.charAt(0)}</span>
+            <div 
+              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold"
+              style={{ background: 'rgba(234,120,80,0.1)', color: 'var(--color-primary)' }}
+            >
+              {agent.name.charAt(0)}
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-medium text-text truncate">{agent.name}</div>
+              <div className="text-sm font-medium text-[--color-text] truncate">{agent.name}</div>
             </div>
           </div>
         ))}
@@ -73,7 +92,12 @@ interface MessageInputProps {
   agents?: Agent[];
 }
 
-export default function MessageInput({ onSend, onCommand, disabled, agents = [] }: MessageInputProps) {
+export default function MessageInput({
+  onSend,
+  onCommand,
+  disabled,
+  agents = [],
+}: MessageInputProps) {
   const [content, setContent] = useState('');
   const [showMentionList, setShowMentionList] = useState(false);
   const [showCommandList, setShowCommandList] = useState(false);
@@ -95,7 +119,6 @@ export default function MessageInput({ onSend, onCommand, disabled, agents = [] 
     if (content.trim() && !disabled) {
       const trimmed = content.trim();
       
-      // Check for command (starts with /)
       if (onCommand && trimmed.startsWith('/')) {
         const parts = trimmed.slice(1).split(' ');
         const command = parts[0].toLowerCase();
@@ -155,7 +178,6 @@ export default function MessageInput({ onSend, onCommand, disabled, agents = [] 
 
     const textBeforeCursor = value.slice(0, cursorPos);
     
-    // Check for command - only show when input starts with / and has no space before cursor
     if (textBeforeCursor.startsWith('/') && !textBeforeCursor.includes(' ')) {
       setShowCommandList(true);
       setCommandQuery(textBeforeCursor.slice(1).toLowerCase());
@@ -164,7 +186,6 @@ export default function MessageInput({ onSend, onCommand, disabled, agents = [] 
       return;
     }
     
-    // Check for mention (@) - only show when preceded by @
     const lastAtPos = textBeforeCursor.lastIndexOf('@');
     const lastSpacePos = textBeforeCursor.lastIndexOf(' ');
     
@@ -207,31 +228,31 @@ export default function MessageInput({ onSend, onCommand, disabled, agents = [] 
     setMentionQuery('');
   };
 
-  const insertCommand = (cmd: typeof COMMANDS[0]) => {
+  const insertCommand = (cmd: Command) => {
     setContent(cmd.usage + ' ');
     setShowCommandList(false);
     setCommandQuery('');
     textareaRef.current?.focus();
   };
 
-  const handleMentionClick = () => {
-    setShowMentionList(true);
-    setMentionQuery('');
-    setSelectedMentionIndex(0);
-  };
+  const isActive = content.trim().length > 0 && !disabled;
 
   return (
-    <div className="border-t border-border bg-surface p-4 relative">
-      <div className="flex gap-3 items-end">
-        <button
-          onClick={handleMentionClick}
-          disabled={disabled}
-          className="p-2 text-text-muted hover:text-primary transition disabled:opacity-50"
-          title="Mention someone"
-        >
-          <AtSign size={20} />
-        </button>
-        <div className="flex-1 relative">
+    <div className="p-4 pb-5 bg-transparent">
+      <div 
+        className="relative bg-white rounded-[24px] p-3 pl-5 flex flex-col gap-3"
+        style={{ 
+          border: '1px solid rgba(0,0,0,0.04)',
+          boxShadow: '0 4px 24px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04)',
+        }}
+      >
+        <div className="flex items-center gap-3">
+          <span className="text-[11px] text-[--color-text-subtle] ml-auto">
+            Enter 发送 · Shift+Enter 换行
+          </span>
+        </div>
+
+        <div className="flex items-end gap-3">
           <textarea
             ref={textareaRef}
             value={content}
@@ -239,29 +260,56 @@ export default function MessageInput({ onSend, onCommand, disabled, agents = [] 
             onKeyDown={handleKeyDown}
             placeholder="输入消息... (@ 提及, /命令)"
             disabled={disabled}
-            className="w-full px-4 py-2 bg-background border border-border rounded-lg resize-none focus:outline-none focus:border-primary disabled:opacity-50"
             rows={1}
-            style={{ minHeight: '40px', maxHeight: '120px' }}
+            style={{
+              border: 'none',
+              outline: 'none',
+              resize: 'none',
+              fontSize: 15,
+              lineHeight: 1.6,
+              minHeight: 44,
+              maxHeight: 120,
+              color: '#2C2A27',
+              background: 'transparent',
+              flex: 1,
+            }}
           />
-          <MentionList
-            agents={filteredAgents}
-            isOpen={showMentionList}
-            selectedIndex={selectedMentionIndex}
-            onSelect={(agent) => insertMention(agent.name)}
-          />
-          <CommandList
-            isOpen={showCommandList}
-            selectedIndex={selectedCommandIndex}
-            onSelect={(cmd) => insertCommand(cmd)}
-          />
+          <button
+            onClick={handleSend}
+            disabled={!isActive}
+            className="transition-all duration-200"
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 14,
+              border: 'none',
+              cursor: isActive ? 'pointer' : 'not-allowed',
+              background: isActive 
+                ? 'linear-gradient(135deg, #EA7850 0%, #E86848 100%)' 
+                : '#F0EDE8',
+              color: isActive ? '#fff' : '#bbb',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: isActive ? '0 4px 16px rgba(234,120,80,0.35)' : 'none',
+              transform: isActive ? 'scale(1)' : 'scale(0.95)',
+            }}
+          >
+            <Send size={18} />
+          </button>
         </div>
-        <button
-          onClick={handleSend}
-          disabled={!content.trim() || disabled}
-          className="p-2 rounded-lg bg-primary text-white hover:bg-opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Send size={20} />
-        </button>
+
+        <MentionList
+          agents={filteredAgents}
+          isOpen={showMentionList}
+          selectedIndex={selectedMentionIndex}
+          onSelect={(agent) => insertMention(agent.name)}
+        />
+        <CommandList
+          isOpen={showCommandList}
+          selectedIndex={selectedCommandIndex}
+          onSelect={(cmd) => insertCommand(cmd)}
+        />
       </div>
     </div>
   );
