@@ -1,12 +1,28 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useAgentStore, type Agent } from '../stores/agentStore';
-import { X, Edit2, Trash2, Power, Loader2, Save } from 'lucide-react';
+import { X, Edit2, Trash2, Power, Loader2, Save, Bot } from 'lucide-react';
 import { MODEL_OPTIONS } from '../config/models';
+import Dropdown from './Dropdown';
 
 interface AgentDetailSidebarProps {
   agent: Agent;
   onClose: () => void;
 }
+
+const LENGTH_OPTIONS = [
+  { value: 1, label: '1 - Very Short' },
+  { value: 2, label: '2 - Short' },
+  { value: 3, label: '3 - Normal' },
+  { value: 4, label: '4 - Long' },
+  { value: 5, label: '5 - Very Long' },
+];
+
+const MODEL_DROPDOWN_OPTIONS = MODEL_OPTIONS.flatMap(group => 
+  group.models.map(model => ({
+    value: model.value,
+    label: `${model.label} (${group.group})`
+  }))
+);
 
 export default function AgentDetailSidebar({ agent, onClose }: AgentDetailSidebarProps) {
   const { updateAgent, deleteAgent, toggleActive, isLoading } = useAgentStore();
@@ -15,33 +31,32 @@ export default function AgentDetailSidebar({ agent, onClose }: AgentDetailSideba
   
   const [formData, setFormData] = useState({
     name: agent.name,
-    avatar: agent.avatar || '🤖',
+    avatar: agent.avatar || 'Robot',
     description: agent.description || '',
     model: agent.model,
+    api_base: agent.api_base || '',
     system_prompt: agent.system_prompt,
     response_speed: agent.response_speed,
     reply_probability: agent.reply_probability,
     default_length: agent.default_length,
   });
 
-  useEffect(() => {
-    setFormData({
-      name: agent.name,
-      avatar: agent.avatar || '🤖',
-      description: agent.description || '',
-      model: agent.model,
-      system_prompt: agent.system_prompt,
-      response_speed: agent.response_speed,
-      reply_probability: agent.reply_probability,
-      default_length: agent.default_length,
-    });
-    setIsEditing(false);
-  }, [agent]);
+  const [showApiKeyField, setShowApiKeyField] = useState(false);
+  const [newApiKey, setNewApiKey] = useState('');
 
   const handleSave = async () => {
-    const result = await updateAgent(agent.id, formData);
+    const updateData = {
+      ...formData,
+      api_base: formData.api_base || undefined,
+    };
+    if (newApiKey) {
+      (updateData as { api_key?: string }).api_key = newApiKey;
+    }
+    const result = await updateAgent(agent.id, updateData);
     if (result) {
       setIsEditing(false);
+      setShowApiKeyField(false);
+      setNewApiKey('');
     }
   };
 
@@ -57,14 +72,10 @@ export default function AgentDetailSidebar({ agent, onClose }: AgentDetailSideba
   };
 
   const getAvatarDisplay = () => {
-    if (formData.avatar) {
-      return formData.avatar.startsWith('http') ? (
-        <img src={formData.avatar} alt={formData.name} className="w-20 h-20 rounded-full object-cover" />
-      ) : (
-        <span className="text-4xl">{formData.avatar}</span>
-      );
+    if (formData.avatar && formData.avatar.startsWith('http')) {
+      return <img src={formData.avatar} alt={formData.name} className="w-20 h-20 rounded-full object-cover" />;
     }
-    return <span className="text-4xl">{formData.name.charAt(0).toUpperCase()}</span>;
+    return <Bot size={40} className="text-primary" />;
   };
 
   return (
@@ -72,7 +83,7 @@ export default function AgentDetailSidebar({ agent, onClose }: AgentDetailSideba
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-border">
         <h2 className="text-lg font-semibold text-text">Agent Details</h2>
-        <button onClick={onClose} className="p-1 rounded hover:bg-background transition">
+        <button onClick={onClose} className="p-2 rounded hover:bg-background transition" aria-label="Close sidebar">
           <X size={20} className="text-text-muted" />
         </button>
       </div>
@@ -118,23 +129,72 @@ export default function AgentDetailSidebar({ agent, onClose }: AgentDetailSideba
         <div className="mb-4">
           <label className="block text-sm font-medium text-text-muted mb-1">Model</label>
           {isEditing ? (
-            <select
+            <Dropdown
+              options={MODEL_DROPDOWN_OPTIONS}
               value={formData.model}
-              onChange={(e) => setFormData((prev) => ({ ...prev, model: e.target.value }))}
-              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-primary"
-            >
-              {MODEL_OPTIONS.map((group) => (
-                <optgroup key={group.group} label={group.group}>
-                  {group.models.map((model) => (
-                    <option key={model.value} value={model.value}>
-                      {model.label}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
+              onChange={(val) => setFormData((prev) => ({ ...prev, model: val as string }))}
+              placeholder="Select a model"
+            />
           ) : (
             <p className="text-sm text-text">{agent.model}</p>
+          )}
+        </div>
+
+        {/* API Base URL */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-text-muted mb-1">API Base URL</label>
+          {isEditing ? (
+            <input
+              type="text"
+              value={formData.api_base}
+              onChange={(e) => setFormData((prev) => ({ ...prev, api_base: e.target.value }))}
+              placeholder="https://api.openai.com/v1"
+              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-primary text-sm"
+            />
+          ) : (
+            <p className="text-sm text-text bg-background p-2 rounded truncate" title={agent.api_base || 'Default (OpenAI)'}>
+              {agent.api_base || 'Default (OpenAI)'}
+            </p>
+          )}
+        </div>
+
+        {/* API Key */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-text-muted mb-1">API Key</label>
+          {isEditing ? (
+            showApiKeyField ? (
+              <div className="space-y-2">
+                <input
+                  type="password"
+                  value={newApiKey}
+                  onChange={(e) => setNewApiKey(e.target.value)}
+                  placeholder="Enter new API key"
+                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:border-primary text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowApiKeyField(false);
+                    setNewApiKey('');
+                  }}
+                  className="text-sm text-text-muted hover:text-text"
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowApiKeyField(true)}
+                className="text-sm text-primary hover:underline"
+              >
+                Change API Key
+              </button>
+            )
+          ) : (
+            <p className="text-sm text-text bg-background p-2 rounded">
+              ••••••••••••
+            </p>
           )}
         </div>
 
@@ -209,22 +269,12 @@ export default function AgentDetailSidebar({ agent, onClose }: AgentDetailSideba
             Default Response Length: {isEditing ? formData.default_length : agent.default_length}
           </label>
           {isEditing ? (
-            <div className="flex gap-2">
-              {[1, 2, 3, 4, 5].map((level) => (
-                <button
-                  key={level}
-                  type="button"
-                  onClick={() => setFormData((prev) => ({ ...prev, default_length: level }))}
-                  className={`flex-1 py-2 rounded-lg text-sm font-medium transition ${
-                    formData.default_length === level
-                      ? 'bg-primary text-white'
-                      : 'bg-background text-text hover:bg-gray-100'
-                  }`}
-                >
-                  {level}
-                </button>
-              ))}
-            </div>
+            <Dropdown
+              options={LENGTH_OPTIONS}
+              value={formData.default_length}
+              onChange={(val) => setFormData((prev) => ({ ...prev, default_length: val as number }))}
+              placeholder="Select length"
+            />
           ) : (
             <div className="flex gap-1">
               {[1, 2, 3, 4, 5].map((level) => (
@@ -257,14 +307,16 @@ export default function AgentDetailSidebar({ agent, onClose }: AgentDetailSideba
             <button
               onClick={handleSave}
               disabled={isLoading}
-              className="w-full py-2 bg-primary text-white rounded-lg hover:bg-opacity-90 transition flex items-center justify-center gap-2 disabled:opacity-50"
+              className="w-full py-3 bg-primary text-white rounded-lg hover:opacity-90 transition flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px]"
+              aria-label="Save changes"
             >
               {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               Save Changes
             </button>
             <button
               onClick={() => setIsEditing(false)}
-              className="w-full py-2 text-text-muted hover:text-text transition"
+              className="w-full py-3 text-text-muted hover:text-text transition min-h-[44px]"
+              aria-label="Cancel editing"
             >
               Cancel
             </button>
@@ -273,7 +325,8 @@ export default function AgentDetailSidebar({ agent, onClose }: AgentDetailSideba
           <>
             <button
               onClick={() => setIsEditing(true)}
-              className="w-full py-2 bg-primary text-white rounded-lg hover:bg-opacity-90 transition flex items-center justify-center gap-2"
+              className="w-full py-3 bg-primary text-white rounded-lg hover:opacity-90 transition flex items-center justify-center gap-2 min-h-[44px]"
+              aria-label="Edit agent"
             >
               <Edit2 size={16} />
               Edit Agent
@@ -281,18 +334,20 @@ export default function AgentDetailSidebar({ agent, onClose }: AgentDetailSideba
             <button
               onClick={handleToggleActive}
               disabled={isLoading}
-              className={`w-full py-2 rounded-lg transition flex items-center justify-center gap-2 ${
+              className={`w-full py-3 rounded-lg transition flex items-center justify-center gap-2 min-h-[44px] ${
                 agent.is_active
                   ? 'bg-gray-100 text-text hover:bg-gray-200'
                   : 'bg-green-100 text-green-600 hover:bg-green-200'
               }`}
+              aria-label={agent.is_active ? 'Deactivate agent' : 'Activate agent'}
             >
               <Power size={16} />
               {agent.is_active ? 'Deactivate' : 'Activate'}
             </button>
             <button
               onClick={() => setShowDeleteConfirm(true)}
-              className="w-full py-2 text-red-500 hover:bg-red-50 rounded-lg transition flex items-center justify-center gap-2"
+              className="w-full py-3 text-red-500 hover:bg-red-50 rounded-lg transition flex items-center justify-center gap-2 min-h-[44px]"
+              aria-label="Delete agent"
             >
               <Trash2 size={16} />
               Delete Agent
