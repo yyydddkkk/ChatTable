@@ -1,6 +1,9 @@
 from typing import AsyncGenerator
 import litellm
 from app.core.security import security_manager
+from app.core.config import get_logger
+
+logger = get_logger(__name__)
 
 
 class LLMService:
@@ -28,6 +31,7 @@ class LLMService:
             if api_base:
                 kwargs["api_base"] = api_base
 
+            logger.debug(f"LLM stream request: model={model}, api_base={api_base}")
             # Stream response
             response = await litellm.acompletion(**kwargs)
 
@@ -44,6 +48,7 @@ class LLMService:
                             yield chunk.choices[0].delta.content
 
         except Exception as e:
+            logger.error(f"LLM stream error: {str(e)}", exc_info=True)
             raise Exception(f"LLM error: {str(e)}")
 
     async def generate(
@@ -66,13 +71,16 @@ class LLMService:
             if api_base:
                 kwargs["api_base"] = api_base
 
+            logger.info(f"LLM request: model={model}, api_base={api_base}")
             response = await litellm.acompletion(**kwargs)
+            logger.debug(f"LLM response: {response}")
 
             if response.choices and response.choices[0].message.content:
                 return response.choices[0].message.content
             return "0.5"
 
         except Exception as e:
+            logger.error(f"LLM error: {type(e).__name__}: {e}", exc_info=True)
             return "0.5"
 
 

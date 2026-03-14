@@ -5,6 +5,9 @@ from dataclasses import dataclass
 from app.models.agent import Agent
 from app.services.llm_service import llm_service
 from app.core.security import security_manager
+from app.core.config import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -19,6 +22,7 @@ class DecisionEngine:
         prompt = f"你是一个判断助手。判断用户消息是否与 Agent 相关。Agent 角色: {agent.system_prompt}。用户消息: {message}。请判断相关度 (0-1)，只输出一个数字。"
 
         try:
+            logger.debug(f"Calculating relevance for agent {agent.name}")
             response = await llm_service.generate(
                 model=agent.model,
                 api_key=agent.api_key,
@@ -29,18 +33,26 @@ class DecisionEngine:
             match = re.search(r"0?\.\d+|\d", response)
             if match:
                 value = float(match.group())
-                return max(0.0, min(1.0, value))
+                relevance = max(0.0, min(1.0, value))
+                logger.debug(f"Agent {agent.name} relevance: {relevance}")
+                return relevance
 
         except Exception as e:
-            print(f"Relevance calculation error: {e}")
+            logger.error(f"Relevance calculation error: {e}", exc_info=True)
 
         return 0.5
 
     async def should_reply(
-        self, agent: Agent, message: str, is_mentioned: bool = False
+        self,
+        agent: Agent,
+        message: str,
+        is_mentioned: bool = False,
+        is_private: bool = False,
     ) -> ReplyDecision:
-        if is_mentioned:
-            return ReplyDecision(should_reply=True, reason="mentioned", confidence=1.0)
+        if is_mentioned or is_private:
+            return ReplyDecision(
+                should_reply=True, reason="mentioned_or_private", confidence=1.0
+            )
 
         relevance = await self.calculate_relevance(agent, message)
 

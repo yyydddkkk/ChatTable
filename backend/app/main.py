@@ -2,10 +2,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session
-from app.core.config import settings
+from app.core.config import settings, setup_logging, get_logger
 from app.core.websocket import manager
 from app.core.database import init_db, engine
-from app.api import agents, conversations
+from app.api.v1.router import api_router
 from app.models.message import Message
 from app.models.agent import Agent
 from app.services.llm_service import llm_service
@@ -21,6 +21,8 @@ from datetime import datetime
 from typing import Dict
 import json
 import asyncio
+
+logger = get_logger(__name__)
 
 
 async def process_agent_reply(
@@ -78,10 +80,12 @@ async def process_agent_reply(
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan events"""
-    # Startup: initialize database
+    setup_logging()
+    logger.info("Starting ChatTable API")
     init_db()
+    logger.info("Database initialized")
     yield
-    # Shutdown: cleanup if needed
+    logger.info("Shutting down ChatTable API")
 
 
 app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
@@ -96,8 +100,7 @@ app.add_middleware(
 )
 
 # Include routers
-app.include_router(agents.router)
-app.include_router(conversations.router)
+app.include_router(api_router)
 
 
 @app.get("/")
@@ -113,12 +116,14 @@ async def health():
 @app.websocket("/ws/{conversation_id}")
 async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
     await manager.connect(websocket, conversation_id)
+    logger.info(f"WebSocket connected: conversation_id={conversation_id}")
     # 会话长度等级（默认3）
     conversation_lengths: Dict[int, int] = {}
     current_length = conversation_lengths.get(int(conversation_id), 3)
     try:
         while True:
             data = await websocket.receive_json()
+            logger.debug(f"Received WebSocket data: {data}")
 
             # Handle pong response
             if data.get("type") == "pong":
@@ -138,6 +143,9 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
             # Handle user message
             if data.get("type") == "user_message":
                 content = data.get("content", "")
+                logger.info(
+                    f"User message in conversation {conversation_id}: {content[:50]}..."
+                )
 
                 # Save user message
                 with Session(engine) as db:
@@ -169,12 +177,14 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
 
                     conversation = db.get(Conversation, int(conversation_id))
                     if not conversation:
+                        logger.warning(f"Conversation not found: {conversation_id}")
                         continue
 
                     is_group = conversation.type == "group"
 
                     # Get all agents in conversation
                     agents = get_conversation_agents(db, int(conversation_id))
+                    logger.debug(f"Found {len(agents)} agents in conversation")
 
                     # Add to memory
                     for agent in agents:
@@ -190,9 +200,15 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                     if trigger:
                         current_length = max(1, min(5, current_length + trigger))
                         conversation_lengths[int(conversation_id)] = current_length
+                        logger.debug(
+                            f"Length adjusted by {trigger}, new level: {current_length}"
+                        )
 
                     # 检测话题切换
                     if topic_detector.detect_topic_switch(cleaned_content):
+                        logger.info(
+                            f"Topic switch detected in conversation {conversation_id}"
+                        )
                         await manager.broadcast(
                             {"type": "topic_switched"},
                             conversation_id,
@@ -208,16 +224,20 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                             agent=agent,
                             message=cleaned_content,
                             is_mentioned=is_mentioned,
+                            is_private=not is_group,
                         )
 
                         if decision.should_reply:
                             replying_agents.append(agent)
-                            print(
-                                f"[Decision] Agent {agent.name}: {decision.reason} (confidence: {decision.confidence:.2f})"
+                            logger.info(
+                                f"Agent {agent.name} will reply: {decision.reason} (confidence: {decision.confidence:.2f})"
                             )
 
                     if not replying_agents:
                         # No agents need to reply (group chat with no mentions)
+                        logger.debug(
+                            f"No agents will reply in conversation {conversation_id}"
+                        )
                         continue
 
                     # Send thinking status for all agents
@@ -285,6 +305,9 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                             db.add(agent_msg)
                             db.commit()
                             db.refresh(agent_msg)
+                            logger.info(
+                                f"Agent {agent.name} sent message: {full_response[:50]}..."
+                            )
 
                             # Send done event
                             await manager.broadcast(
@@ -302,6 +325,9 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                                 conversation_id,
                             )
                         except Exception as e:
+                            logger.error(
+                                f"Agent {agent.name} error: {str(e)}", exc_info=True
+                            )
                             await manager.broadcast(
                                 {
                                     "type": "error",
@@ -315,4 +341,5 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                     await asyncio.gather(*tasks)
 
     except WebSocketDisconnect:
+        logger.info(f"WebSocket disconnected: conversation_id={conversation_id}")
         manager.disconnect(websocket, conversation_id)
