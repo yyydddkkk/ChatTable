@@ -115,8 +115,10 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
         setShowTopicSwitched(true);
         setTimeout(() => setShowTopicSwitched(false), 3000);
       } else if (data.type === 'cleared') {
-        // Clear local messages and refetch
+        // Clear local messages
         setMessages([]);
+        setStreamingMessages(new Map());
+        setThinkingAgents(new Set());
       }
     };
 
