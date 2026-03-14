@@ -17,7 +17,7 @@ export const COMMANDS = [
 
 export function CommandList({ selectedIndex, onSelect }: { selectedIndex: number; onSelect: (cmd: typeof COMMANDS[0]) => void }) {
   return (
-    <div className="absolute bottom-full left-0 mb-2 w-64 bg-surface border border-border rounded-lg shadow-lg overflow-hidden z-10">
+    <div className="absolute bottom-full left-0 mb-2 w-72 bg-surface border border-border rounded-lg shadow-lg overflow-hidden z-10">
       <div className="p-2 text-xs text-text-muted border-b border-border">
         Commands
       </div>
@@ -30,8 +30,8 @@ export function CommandList({ selectedIndex, onSelect }: { selectedIndex: number
               idx === selectedIndex ? 'bg-primary/10' : 'hover:bg-background'
             }`}
           >
-            <div className="text-sm font-medium text-text">{cmd.usage}</div>
-            <div className="text-xs text-text-muted">{cmd.description}</div>
+            <span className="text-sm font-medium text-text">{cmd.usage}</span>
+            <span className="text-sm text-text-muted ml-2">{cmd.description}</span>
           </div>
         ))}
       </div>
@@ -158,33 +158,22 @@ export default function MessageInput({ onSend, onCommand, disabled, agents = [] 
 
     const textBeforeCursor = value.slice(0, cursorPos);
     
-    // Check for command (starts with / at the beginning)
-    if (textBeforeCursor === '/') {
+    // Check for command - only show when input starts with / and has no space before cursor
+    if (textBeforeCursor.startsWith('/') && !textBeforeCursor.includes(' ')) {
       setShowCommandList(true);
-      setCommandQuery('');
+      setCommandQuery(textBeforeCursor.slice(1).toLowerCase());
       setSelectedCommandIndex(0);
       setShowMentionList(false);
       return;
     }
     
-    if (showCommandList && textBeforeCursor.startsWith('/')) {
-      const cmdText = textBeforeCursor.slice(1);
-      const spacePos = cmdText.indexOf(' ');
-      if (spacePos === -1) {
-        setCommandQuery(cmdText.toLowerCase());
-      } else {
-        setCommandQuery(cmdText.slice(0, spacePos).toLowerCase());
-      }
-      setSelectedCommandIndex(0);
-      return;
-    }
-    
-    // Check for mention (@)
+    // Check for mention (@) - only show when preceded by @
     const lastAtPos = textBeforeCursor.lastIndexOf('@');
+    const lastSpacePos = textBeforeCursor.lastIndexOf(' ');
     
-    if (lastAtPos !== -1) {
+    if (lastAtPos > lastSpacePos) {
       const textAfterAt = textBeforeCursor.slice(lastAtPos + 1);
-      if (!textAfterAt.includes(' ') && lastAtPos >= 0) {
+      if (!textAfterAt.includes(' ')) {
         setShowCommandList(false);
         setShowMentionList(true);
         setMentionQuery(textAfterAt);
