@@ -15,15 +15,26 @@ def normalize_api_base(api_base: str | None) -> tuple[str | None, str | None]:
     if not api_base:
         return None, None
 
+    # Fix malformed URLs (e.g., //api.deepseek.com -> https://api.deepseek.com)
+    if api_base.startswith("//"):
+        api_base = "https:" + api_base
+
     url = api_base.rstrip("/")
     if url.endswith("/chat/completions"):
         url = url[: -len("/chat/completions")]
 
+    # Detect provider based on URL
     provider = None
     if "dashscope" in url:
         provider = "openai"  # DashScope is OpenAI-compatible
+    elif "deepseek" in url:
+        provider = "deepseek"
     elif "openai" in url:
         provider = "openai"
+    elif "azure" in url:
+        provider = "azure"
+    elif "anthropic" in url:
+        provider = "anthropic"
 
     logger.debug(f"Normalized api_base: {api_base} -> {url}, provider: {provider}")
     return url, provider
