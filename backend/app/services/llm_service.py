@@ -6,15 +6,27 @@ from app.core.config import get_logger
 logger = get_logger(__name__)
 
 
-def normalize_api_base(api_base: str | None) -> str | None:
-    """Normalize API base URL by removing trailing slashes and /chat/completions"""
+def normalize_api_base(api_base: str | None) -> tuple[str | None, str | None]:
+    """Normalize API base URL and determine LLM provider
+
+    Returns:
+        tuple of (normalized_url, custom_llm_provider)
+    """
     if not api_base:
-        return None
+        return None, None
+
     url = api_base.rstrip("/")
     if url.endswith("/chat/completions"):
         url = url[: -len("/chat/completions")]
-    logger.debug(f"Normalized api_base: {api_base} -> {url}")
-    return url
+
+    provider = None
+    if "dashscope" in url:
+        provider = "openai"  # DashScope is OpenAI-compatible
+    elif "openai" in url:
+        provider = "openai"
+
+    logger.debug(f"Normalized api_base: {api_base} -> {url}, provider: {provider}")
+    return url, provider
 
 
 class LLMService:
@@ -32,8 +44,8 @@ class LLMService:
             # Decrypt API key
             decrypted_key = security_manager.decrypt(api_key)
 
-            # Normalize API base URL
-            api_base = normalize_api_base(api_base)
+            # Normalize API base URL and get provider
+            normalized_url, custom_provider = normalize_api_base(api_base)
 
             # Prepare kwargs
             kwargs = {
@@ -42,10 +54,14 @@ class LLMService:
                 "api_key": decrypted_key,
                 "stream": True,
             }
-            if api_base:
-                kwargs["api_base"] = api_base
+            if normalized_url:
+                kwargs["api_base"] = normalized_url
+            if custom_provider:
+                kwargs["custom_llm_provider"] = custom_provider
 
-            logger.info(f"LLM stream request: model={model}, api_base='{api_base}'")
+            logger.info(
+                f"LLM stream request: model={model}, api_base='{normalized_url}', provider={custom_provider}"
+            )
             logger.debug(
                 f"Full kwargs: { {k: v if k != 'api_key' else '***' for k, v in kwargs.items()} }"
             )
@@ -85,8 +101,8 @@ class LLMService:
         try:
             decrypted_key = security_manager.decrypt(api_key)
 
-            # Normalize API base URL
-            api_base = normalize_api_base(api_base)
+            # Normalize API base URL and get provider
+            normalized_url, custom_provider = normalize_api_base(api_base)
 
             kwargs = {
                 "model": model,
@@ -94,10 +110,14 @@ class LLMService:
                 "api_key": decrypted_key,
                 "stream": False,
             }
-            if api_base:
-                kwargs["api_base"] = api_base
+            if normalized_url:
+                kwargs["api_base"] = normalized_url
+            if custom_provider:
+                kwargs["custom_llm_provider"] = custom_provider
 
-            logger.info(f"LLM request: model={model}, api_base='{api_base}'")
+            logger.info(
+                f"LLM request: model={model}, api_base='{normalized_url}', provider={custom_provider}"
+            )
             response = await litellm.acompletion(**kwargs)
             logger.debug(f"LLM response: {response}")
 
