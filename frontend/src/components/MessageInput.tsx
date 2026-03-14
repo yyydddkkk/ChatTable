@@ -15,7 +15,9 @@ export const COMMANDS = [
   { name: 'length', description: '设置回复长度 (1-5)', usage: '/length 3' },
 ];
 
-export function CommandList({ selectedIndex, onSelect }: { selectedIndex: number; onSelect: (cmd: typeof COMMANDS[0]) => void }) {
+export function CommandList({ isOpen, selectedIndex, onSelect }: { isOpen: boolean; selectedIndex: number; onSelect: (cmd: typeof COMMANDS[0]) => void }) {
+  if (!isOpen) return null;
+  
   return (
     <div className="absolute bottom-full left-0 mb-2 w-72 bg-surface border border-border rounded-lg shadow-lg overflow-hidden z-10">
       <div className="p-2 text-xs text-text-muted border-b border-border">
@@ -253,6 +255,7 @@ export default function MessageInput({ onSend, onCommand, disabled, agents = [] 
             onSelect={(agent) => insertMention(agent.name)}
           />
           <CommandList
+            isOpen={showCommandList}
             selectedIndex={selectedCommandIndex}
             onSelect={(cmd) => insertCommand(cmd)}
           />
