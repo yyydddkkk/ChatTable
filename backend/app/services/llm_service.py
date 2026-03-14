@@ -6,6 +6,17 @@ from app.core.config import get_logger
 logger = get_logger(__name__)
 
 
+def normalize_api_base(api_base: str | None) -> str | None:
+    """Normalize API base URL by removing trailing slashes and /chat/completions"""
+    if not api_base:
+        return None
+    url = api_base.rstrip("/")
+    if url.endswith("/chat/completions"):
+        url = url[: -len("/chat/completions")]
+    logger.debug(f"Normalized api_base: {api_base} -> {url}")
+    return url
+
+
 class LLMService:
     """Service for LLM interactions"""
 
@@ -21,6 +32,9 @@ class LLMService:
             # Decrypt API key
             decrypted_key = security_manager.decrypt(api_key)
 
+            # Normalize API base URL
+            api_base = normalize_api_base(api_base)
+
             # Prepare kwargs
             kwargs = {
                 "model": model,
@@ -31,9 +45,18 @@ class LLMService:
             if api_base:
                 kwargs["api_base"] = api_base
 
-            logger.debug(f"LLM stream request: model={model}, api_base={api_base}")
+            logger.info(f"LLM stream request: model={model}, api_base='{api_base}'")
+            logger.debug(
+                f"Full kwargs: { {k: v if k != 'api_key' else '***' for k, v in kwargs.items()} }"
+            )
             # Stream response
-            response = await litellm.acompletion(**kwargs)
+            try:
+                response = await litellm.acompletion(**kwargs)
+            except Exception as litellm_error:
+                logger.error(
+                    f"LiteLLM error details: model={model}, api_base='{api_base}'"
+                )
+                raise
 
             # Handle different response types
             try:
@@ -62,6 +85,9 @@ class LLMService:
         try:
             decrypted_key = security_manager.decrypt(api_key)
 
+            # Normalize API base URL
+            api_base = normalize_api_base(api_base)
+
             kwargs = {
                 "model": model,
                 "messages": messages,
@@ -71,7 +97,7 @@ class LLMService:
             if api_base:
                 kwargs["api_base"] = api_base
 
-            logger.info(f"LLM request: model={model}, api_base={api_base}")
+            logger.info(f"LLM request: model={model}, api_base='{api_base}'")
             response = await litellm.acompletion(**kwargs)
             logger.debug(f"LLM response: {response}")
 
