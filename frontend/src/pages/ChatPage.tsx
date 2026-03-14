@@ -221,7 +221,12 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
 
       <ChatArea messages={displayMessages} thinkingAgentId={thinkingAgents.size > 0 ? Array.from(thinkingAgents)[0] : undefined} />
       <MessageInput 
-        onSend={handleSend} 
+        onSend={handleSend}
+        onCommand={(command, args) => {
+          if (command === 'clear' && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'clear' }));
+          }
+        }}
         disabled={thinkingAgents.size > 0} 
         agents={isGroupChat ? displayAgents : []}
       />

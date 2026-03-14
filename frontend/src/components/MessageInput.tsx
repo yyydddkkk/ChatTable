@@ -41,11 +41,12 @@ export function MentionList({ agents, isOpen, selectedIndex, onSelect }: Mention
 
 interface MessageInputProps {
   onSend: (content: string) => void;
+  onCommand?: (command: string, args: string) => void;
   disabled?: boolean;
   agents?: Agent[];
 }
 
-export default function MessageInput({ onSend, disabled, agents = [] }: MessageInputProps) {
+export default function MessageInput({ onSend, onCommand, disabled, agents = [] }: MessageInputProps) {
   const [content, setContent] = useState('');
   const [showMentionList, setShowMentionList] = useState(false);
   const [mentionQuery, setMentionQuery] = useState('');
@@ -58,7 +59,18 @@ export default function MessageInput({ onSend, disabled, agents = [] }: MessageI
 
   const handleSend = () => {
     if (content.trim() && !disabled) {
-      onSend(content.trim());
+      const trimmed = content.trim();
+      
+      // Check for command (starts with /)
+      if (onCommand && trimmed.startsWith('/')) {
+        const parts = trimmed.slice(1).split(' ');
+        const command = parts[0].toLowerCase();
+        const args = parts.slice(1).join(' ');
+        onCommand(command, args);
+      } else {
+        onSend(trimmed);
+      }
+      
       setContent('');
     }
   };
@@ -153,7 +165,7 @@ export default function MessageInput({ onSend, disabled, agents = [] }: MessageI
             value={content}
             onChange={handleChange}
             onKeyDown={handleKeyDown}
-            placeholder="输入消息... (@ 提及)"
+            placeholder="输入消息... (@ 提及, /命令)"
             disabled={disabled}
             className="w-full px-4 py-2 bg-background border border-border rounded-lg resize-none focus:outline-none focus:border-primary disabled:opacity-50"
             rows={1}
