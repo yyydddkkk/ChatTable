@@ -85,5 +85,32 @@ class MemoryManager:
         db.add(memory)
         db.commit()
 
+    def clear_memory(self, db: Session, conversation_id: int, agent_id: int):
+        """清除指定 Agent 的记忆"""
+        memory = db.exec(
+            select(ConversationMemory).where(
+                ConversationMemory.conversation_id == conversation_id,
+                ConversationMemory.agent_id == agent_id,
+            )
+        ).first()
+        if memory:
+            memory.messages = "[]"
+            memory.summary = ""
+            db.add(memory)
+            db.commit()
+
+    def clear_all_memory(self, db: Session, conversation_id: int):
+        """清除会话中所有 Agent 的记忆"""
+        memories = db.exec(
+            select(ConversationMemory).where(
+                ConversationMemory.conversation_id == conversation_id,
+            )
+        ).all()
+        for memory in memories:
+            memory.messages = "[]"
+            memory.summary = ""
+            db.add(memory)
+        db.commit()
+
 
 memory_manager = MemoryManager()

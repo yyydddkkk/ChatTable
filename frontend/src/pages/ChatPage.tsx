@@ -7,6 +7,7 @@ import MessageInput from '../components/MessageInput';
 import GroupAvatar from '../components/GroupAvatar';
 import LengthAdjuster from '../components/LengthAdjuster';
 import type { Message } from '../types';
+import { Bot, ArrowLeft, Trash2 } from 'lucide-react';
 
 interface ChatPageProps {
   agentId?: number;
@@ -113,6 +114,9 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
       } else if (data.type === 'topic_switched') {
         setShowTopicSwitched(true);
         setTimeout(() => setShowTopicSwitched(false), 3000);
+      } else if (data.type === 'cleared') {
+        // Clear local messages and refetch
+        setMessages([]);
       }
     };
 
@@ -121,6 +125,7 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
     return () => {
       websocket.close();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentConversation]);
 
   const handleSend = (content: string) => {
@@ -132,20 +137,30 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
     }
   };
 
-  const displayMessages: Message[] = [...messages];
-  
-  streamingMessages.forEach((content, agentId) => {
-    if (content) {
-      displayMessages.push({
-        id: Date.now() + agentId,
-        conversation_id: currentConversation?.id || 0,
-        sender_type: 'agent',
-        sender_id: agentId,
-        content,
-        created_at: new Date().toISOString(),
-      });
+  const handleClear = () => {
+    if (ws && ws.readyState === WebSocket.OPEN && currentConversation) {
+      ws.send(JSON.stringify({ type: 'clear' }));
     }
-  });
+  };
+
+  const getStreamingMessages = (): Message[] => {
+    const streaming: Message[] = [];
+    streamingMessages.forEach((content, agentId) => {
+      if (content) {
+        streaming.push({
+          id: -agentId,
+          conversation_id: currentConversation?.id || 0,
+          sender_type: 'agent',
+          sender_id: agentId,
+          content,
+          created_at: new Date().toISOString(),
+        });
+      }
+    });
+    return streaming;
+  };
+
+  const displayMessages = [...messages, ...getStreamingMessages()];
 
   const displayAgents = isGroupChat && conversationMembers.length > 0 
     ? conversationMembers 
@@ -154,8 +169,12 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
   return (
     <div className="flex flex-col h-screen bg-background">
       <div className="flex items-center gap-3 p-4 border-b border-border bg-surface">
-        <button onClick={onBack} className="text-text-muted hover:text-text">
-          ← Back
+        <button 
+          onClick={onBack} 
+          className="p-2 text-text-muted hover:text-text hover:bg-background rounded-lg transition"
+          aria-label="Go back"
+        >
+          <ArrowLeft size={20} />
         </button>
         <LengthAdjuster level={lengthLevel} onChange={(level) => {
           setLengthLevel(level);
@@ -163,11 +182,23 @@ export default function ChatPage({ agentId, conversationId, onBack }: ChatPagePr
             ws.send(JSON.stringify({ type: 'set_length', level }));
           }
         }} />
+        <button
+          onClick={handleClear}
+          className="p-2 text-text-muted hover:text-red-500 hover:bg-red-50 rounded-lg transition"
+          title="Clear chat history"
+          aria-label="Clear chat"
+        >
+          <Trash2 size={20} />
+        </button>
         {isGroupChat ? (
           <GroupAvatar agents={displayAgents} size="md" />
         ) : (
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-            <span className="text-xl">{agent?.avatar || '🤖'}</span>
+          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center" aria-hidden="true">
+            {agent?.avatar && agent.avatar.startsWith('http') ? (
+              <img src={agent.avatar} alt="" className="w-8 h-8 rounded-full object-cover" />
+            ) : (
+              <Bot size={20} className="text-primary" />
+            )}
           </div>
         )}
         <div>

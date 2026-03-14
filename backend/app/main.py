@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from sqlmodel import Session
+from sqlmodel import Session, select
 from app.core.config import settings, setup_logging, get_logger
 from app.core.websocket import manager
 from app.core.database import init_db, engine
@@ -136,6 +136,30 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                 conversation_lengths[int(conversation_id)] = level
                 await manager.broadcast(
                     {"type": "length_set", "level": level},
+                    conversation_id,
+                )
+                continue
+
+            # Handle /clear command
+            if data.get("type") == "clear":
+                logger.info(f"Clearing conversation {conversation_id}")
+                with Session(engine) as db:
+                    # Clear all messages
+                    messages = db.exec(
+                        select(Message).where(
+                            Message.conversation_id == int(conversation_id)
+                        )
+                    ).all()
+                    for msg in messages:
+                        db.delete(msg)
+
+                    # Clear all agent memory
+                    memory_manager.clear_all_memory(db, int(conversation_id))
+
+                    db.commit()
+
+                await manager.broadcast(
+                    {"type": "cleared", "message": "Chat history cleared"},
                     conversation_id,
                 )
                 continue
