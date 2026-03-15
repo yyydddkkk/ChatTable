@@ -1,12 +1,8 @@
+import json
 import random
-import re
 from dataclasses import dataclass
 
-from sqlmodel import Session
 from app.models.agent import Agent
-from app.models.provider import Provider
-from app.services.llm_service import llm_service
-from app.core.database import engine
 from app.core.config import get_logger
 
 logger = get_logger(__name__)
@@ -20,36 +16,35 @@ class ReplyDecision:
 
 
 class DecisionEngine:
-    async def calculate_relevance(self, agent: Agent, message: str) -> float:
-        prompt = f"你是一个判断助手。判断用户消息是否与 Agent 相关。Agent 角色: {agent.system_prompt}。用户消息: {message}。请判断相关度 (0-1)，只输出一个数字。"
+    """Local-only decision engine — no LLM calls."""
 
-        try:
-            # Resolve provider credentials
-            with Session(engine) as db:
-                provider = db.get(Provider, agent.provider_id) if agent.provider_id else None
-            if not provider:
-                logger.warning(f"Agent {agent.name} has no provider, skipping relevance")
-                return 0.5
+    def calculate_relevance(self, agent: Agent, message: str) -> float:
+        """Pure local relevance scoring based on name/skills/tags matching."""
+        msg_lower = message.lower()
 
-            logger.debug(f"Calculating relevance for agent {agent.name}")
-            response = await llm_service.generate(
-                model=agent.model,
-                api_key=provider.api_key,
-                messages=[{"role": "user", "content": prompt}],
-                api_base=provider.api_base,
-            )
+        # Rule 1: message contains agent name → high relevance
+        if agent.name and agent.name.lower() in msg_lower:
+            return 0.9
 
-            match = re.search(r"0?\.\d+|\d", response)
-            if match:
-                value = float(match.group())
-                relevance = max(0.0, min(1.0, value))
-                logger.debug(f"Agent {agent.name} relevance: {relevance}")
-                return relevance
+        # Rule 2: skills/tags keyword matching
+        keywords: list[str] = []
+        for field in (agent.skills, agent.tags):
+            if field:
+                try:
+                    items = json.loads(field)
+                    if isinstance(items, list):
+                        keywords.extend(str(k).lower() for k in items)
+                except (json.JSONDecodeError, TypeError):
+                    pass
 
-        except Exception as e:
-            logger.error(f"Relevance calculation error: {e}", exc_info=True)
+        if keywords:
+            matched = sum(1 for kw in keywords if kw in msg_lower)
+            if matched > 0:
+                ratio = matched / len(keywords)
+                return 0.6 + min(ratio * 0.2, 0.2)  # 0.6 ~ 0.8
 
-        return 0.5
+        # Rule 3: fallback to reply_probability
+        return agent.reply_probability * 0.5
 
     async def should_reply(
         self,
@@ -63,7 +58,7 @@ class DecisionEngine:
                 should_reply=True, reason="mentioned_or_private", confidence=1.0
             )
 
-        relevance = await self.calculate_relevance(agent, message)
+        relevance = self.calculate_relevance(agent, message)
 
         if relevance > 0.7:
             return ReplyDecision(

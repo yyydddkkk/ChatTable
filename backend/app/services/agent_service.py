@@ -5,6 +5,7 @@ from sqlmodel import Session
 from app.models.agent import Agent
 from app.schemas.agent import AgentCreate, AgentUpdate
 from app.repositories.agent import agent_repository
+from app.core.cache import app_cache
 
 
 class AgentService:
@@ -22,6 +23,7 @@ class AgentService:
         db.add(agent)
         db.commit()
         db.refresh(agent)
+        app_cache.invalidate_prefix("agent:")
         return agent
 
     def update_agent(
@@ -39,9 +41,11 @@ class AgentService:
         db.add(agent)
         db.commit()
         db.refresh(agent)
+        app_cache.invalidate_prefix("agent:")
         return agent
 
     def delete_agent(self, db: Session, agent_id: int) -> bool:
+        app_cache.invalidate_prefix("agent:")
         return self.repository.delete(db, agent_id)
 
     def toggle_active(self, db: Session, agent_id: int) -> Optional[Agent]:
@@ -57,7 +61,7 @@ class AgentService:
         return agent
 
     @staticmethod
-    def build_system_prompt(agent: Agent) -> str:
+    def build_system_prompt(agent: Agent, is_group: bool = False) -> str:
         """将结构化人格字段 + 自定义 system_prompt 组装成完整 prompt"""
         parts = []
         if agent.system_prompt:
@@ -73,7 +77,14 @@ class AgentService:
                     parts.append(f"你的技能：{', '.join(str(s) for s in skill_list)}")
             except (json.JSONDecodeError, TypeError):
                 pass
-        return "\n\n".join(parts) if parts else "You are a helpful AI assistant."
+
+        base = "\n\n".join(parts) if parts else "You are a helpful AI assistant."
+
+        # 群聊约束：只以自己身份回答
+        if is_group:
+            base += f"\n\n【重要】你的名字是「{agent.name}」。这是一个群聊场景，群里有多个 AI 角色。你只能以「{agent.name}」的身份回答，绝对不要模仿、代替或扮演其他角色发言。只输出你自己的回复内容，不要加角色名前缀。"
+
+        return base
 
     @staticmethod
     async def generate_persona(description: str) -> dict:

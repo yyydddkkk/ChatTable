@@ -9,7 +9,7 @@ interface MainLayoutProps {
 
 export const MainLayout: FC<MainLayoutProps> = ({ children, currentView, onViewChange }) => {
   return (
-    <div className="flex h-screen bg-[--color-background] text-[--color-text] overflow-hidden select-none">
+    <div className="flex h-screen bg-[--color-background] text-[--color-text] overflow-hidden">
       <nav 
         className="w-16 flex flex-col items-center py-5 gap-0 shrink-0 z-10"
         style={{

@@ -1,91 +1,29 @@
 from contextlib import asynccontextmanager
+from typing import Dict
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from sqlmodel import Session, select
-from app.core.config import settings, setup_logging, get_logger
-from app.core.websocket import manager
-from app.core.database import init_db, engine
+from sqlmodel import Session
+
+from app.api.middleware.request_context import request_context_middleware
 from app.api.v1.router import api_router
-from app.models.message import Message
-from app.models.agent import Agent
-from app.models.provider import Provider
-from app.services.llm_service import llm_service
-from app.core.security import security_manager
-from app.services.message_parser import (
-    parse_mentions,
-    get_conversation_agents,
+from app.core.config import get_logger, settings, setup_logging
+from app.core.database import engine, init_db
+from app.core.redis_client import redis_health
+from app.core.request_context import (
+    build_request_context,
+    reset_request_context,
+    set_request_context,
 )
-from app.services.agent_service import AgentService
-from app.core.decision_engine import decision_engine
-from app.core.length_control import length_controller
-from app.core.topic_detector import topic_detector
-from app.core.memory_manager import memory_manager
-from datetime import datetime
-from typing import Dict
-import json
-import asyncio
+from app.core.websocket import manager
+from app.core.chat_handler import chat_handler
+from app.modules.engine.infrastructure.factory import create_chat_engine
+from app.modules.im.application.chat_application_service import ChatApplicationService
 
 logger = get_logger(__name__)
-
-
-async def process_agent_reply(
-    agent: Agent,
-    conversation_id: int,
-    content: str,
-    db: Session,
-):
-    """Process a single agent reply and return the response"""
-    messages = [
-        {"role": "system", "content": AgentService.build_system_prompt(agent)},
-        {"role": "user", "content": content},
-    ]
-
-    full_response = ""
-    try:
-        # Resolve provider credentials
-        provider = db.get(Provider, agent.provider_id) if agent.provider_id else None
-        if not provider:
-            return {
-                "type": "error",
-                "message": f"Agent {agent.name} 未配置服务商",
-            }
-        api_key = provider.api_key
-        api_base = provider.api_base or None
-        async for chunk in llm_service.generate_stream(
-            model=agent.model,
-            api_key=api_key,
-            messages=messages,
-            api_base=api_base,
-        ):
-            full_response += chunk
-
-        # Save agent message
-        agent_msg = Message(
-            conversation_id=conversation_id,
-            sender_type="agent",
-            sender_id=agent.id,
-            content=full_response,
-        )
-        db.add(agent_msg)
-        db.commit()
-        db.refresh(agent_msg)
-
-        return {
-            "type": "agent_done",
-            "agent_id": agent.id,
-            "message": {
-                "id": agent_msg.id,
-                "content": full_response,
-                "sender_type": "agent",
-                "sender_id": agent.id,
-                "created_at": agent_msg.created_at.isoformat(),
-            },
-        }
-    except Exception as e:
-        return {
-            "type": "error",
-            "message": f"Agent error: {str(e)}",
-        }
+chat_application_service = ChatApplicationService(
+    engine=create_chat_engine(chat_handler)
+)
 
 
 @asynccontextmanager
@@ -95,6 +33,10 @@ async def lifespan(app: FastAPI):
     logger.info("Starting ChatTable API")
     init_db()
     logger.info("Database initialized")
+    if redis_health():
+        logger.info("Redis connected")
+    else:
+        logger.warning("Redis is not available")
     yield
     logger.info("Shutting down ChatTable API")
 
@@ -104,7 +46,7 @@ app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # Vite default port
+    allow_origins=["http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -112,6 +54,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(api_router)
+app.middleware("http")(request_context_middleware)
 
 
 @app.get("/")
@@ -126,24 +69,28 @@ async def health():
 
 @app.websocket("/ws/{conversation_id}")
 async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
+    ctx = build_request_context(websocket.headers)
+    token = set_request_context(ctx)
+
     await manager.connect(websocket, conversation_id)
-    logger.info(f"WebSocket connected: conversation_id={conversation_id}")
-    # 会话长度等级（默认3）
+    logger.info(
+        "WebSocket connected: tenant=%s user=%s conversation_id=%s",
+        ctx.tenant_id,
+        ctx.user_id,
+        conversation_id,
+    )
     conversation_lengths: Dict[int, int] = {}
-    current_length = conversation_lengths.get(int(conversation_id), 3)
+
     try:
         while True:
             data = await websocket.receive_json()
-            logger.debug(f"Received WebSocket data: {data}")
+            msg_type = data.get("type")
 
-            # Handle pong response
-            if data.get("type") == "pong":
+            if msg_type == "pong":
                 continue
 
-            # Handle set_length
-            if data.get("type") == "set_length":
-                level = data.get("level", 3)
-                level = max(1, min(5, level))
+            if msg_type == "set_length":
+                level = max(1, min(5, data.get("level", 3)))
                 conversation_lengths[int(conversation_id)] = level
                 await manager.broadcast(
                     {"type": "length_set", "level": level},
@@ -151,248 +98,25 @@ async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
                 )
                 continue
 
-            # Handle /clear command
-            if data.get("type") == "clear":
-                logger.info(f"Clearing conversation {conversation_id}")
+            if msg_type == "clear":
                 with Session(engine) as db:
-                    # Clear all messages
-                    messages = db.exec(
-                        select(Message).where(
-                            Message.conversation_id == int(conversation_id)
-                        )
-                    ).all()
-                    for msg in messages:
-                        db.delete(msg)
-
-                    # Clear all agent memory
-                    memory_manager.clear_all_memory(db, int(conversation_id))
-
-                    db.commit()
-
-                await manager.broadcast(
-                    {"type": "cleared", "message": "Chat history cleared"},
-                    conversation_id,
-                )
+                    await chat_application_service.handle_clear(
+                        conversation_id=conversation_id,
+                        db=db,
+                        ws_manager=manager,
+                    )
                 continue
 
-            # Handle user message
-            if data.get("type") == "user_message":
+            if msg_type == "user_message":
                 content = data.get("content", "")
-                logger.info(
-                    f"User message in conversation {conversation_id}: {content[:50]}..."
-                )
-
-                # Save user message
                 with Session(engine) as db:
-                    user_msg = Message(
-                        conversation_id=int(conversation_id),
-                        sender_type="user",
-                        content=content,
+                    await chat_application_service.handle_user_message(
+                        conversation_id, content, db, manager, conversation_lengths
                     )
-                    db.add(user_msg)
-                    db.commit()
-                    db.refresh(user_msg)
-
-                    # Broadcast user message
-                    await manager.broadcast(
-                        {
-                            "type": "user_message",
-                            "message": {
-                                "id": user_msg.id,
-                                "content": content,
-                                "sender_type": "user",
-                                "created_at": user_msg.created_at.isoformat(),
-                            },
-                        },
-                        conversation_id,
-                    )
-
-                    # Get conversation info
-                    from app.models.conversation import Conversation
-
-                    conversation = db.get(Conversation, int(conversation_id))
-                    if not conversation:
-                        logger.warning(f"Conversation not found: {conversation_id}")
-                        continue
-
-                    is_group = conversation.type == "group"
-
-                    # Get all agents in conversation
-                    agents = get_conversation_agents(db, int(conversation_id))
-                    logger.debug(f"Found {len(agents)} agents in conversation")
-
-                    # Add to memory
-                    for agent in agents:
-                        memory_manager.add_message(
-                            db, int(conversation_id), agent.id, user_msg
-                        )
-
-                    # Parse mentions
-                    cleaned_content, mentioned_ids = parse_mentions(content, agents)
-
-                    # 检测触发词并调整长度
-                    trigger = length_controller.detect_trigger(cleaned_content)
-                    if trigger:
-                        current_length = max(1, min(5, current_length + trigger))
-                        conversation_lengths[int(conversation_id)] = current_length
-                        logger.debug(
-                            f"Length adjusted by {trigger}, new level: {current_length}"
-                        )
-
-                    # 检测话题切换
-                    if topic_detector.detect_topic_switch(cleaned_content):
-                        logger.info(
-                            f"Topic switch detected in conversation {conversation_id}"
-                        )
-                        await manager.broadcast(
-                            {"type": "topic_switched"},
-                            conversation_id,
-                        )
-
-                    # Determine which agents should reply
-                    replying_agents = []
-                    # If someone is @mentioned, only those agents reply
-                    has_mentions = len(mentioned_ids) > 0 and is_group
-                    for agent in agents:
-                        is_mentioned = agent.id in mentioned_ids
-
-                        if has_mentions and not is_mentioned:
-                            # Skip non-mentioned agents when there are explicit mentions
-                            continue
-
-                        # 使用决策引擎判断
-                        decision = await decision_engine.should_reply(
-                            agent=agent,
-                            message=cleaned_content,
-                            is_mentioned=is_mentioned,
-                            is_private=not is_group,
-                        )
-
-                        if decision.should_reply:
-                            replying_agents.append(agent)
-                            logger.info(
-                                f"Agent {agent.name} will reply: {decision.reason} (confidence: {decision.confidence:.2f})"
-                            )
-
-                    if not replying_agents:
-                        # No agents need to reply (group chat with no mentions)
-                        logger.debug(
-                            f"No agents will reply in conversation {conversation_id}"
-                        )
-                        continue
-
-                    # Send thinking status for all agents
-                    for agent in replying_agents:
-                        await manager.broadcast(
-                            {
-                                "type": "agent_thinking",
-                                "agent_id": agent.id,
-                                "agent_name": agent.name,
-                            },
-                            conversation_id,
-                        )
-
-                    # Process replies in parallel
-                    async def stream_agent_reply(agent: Agent):
-                        """Stream reply for a single agent"""
-                        try:
-                            # Resolve provider credentials
-                            provider = db.get(Provider, agent.provider_id) if agent.provider_id else None
-                            if not provider:
-                                await manager.broadcast(
-                                    {
-                                        "type": "error",
-                                        "message": f"Agent {agent.name} 未配置服务商",
-                                    },
-                                    conversation_id,
-                                )
-                                return
-                            api_key = provider.api_key
-                            api_base = provider.api_base or None
-                            full_response = ""
-
-                            # Get memory context
-                            memory_context = memory_manager.build_context(
-                                db, int(conversation_id), agent.id
-                            )
-                            system_prompt = AgentService.build_system_prompt(agent)
-                            if memory_context:
-                                system_prompt = f"{system_prompt}\n\n{memory_context}"
-
-                            messages_with_length = (
-                                length_controller.inject_length_prompt(
-                                    [
-                                        {
-                                            "role": "system",
-                                            "content": system_prompt,
-                                        },
-                                        {"role": "user", "content": cleaned_content},
-                                    ],
-                                    current_length,
-                                )
-                            )
-
-                            async for chunk in llm_service.generate_stream(
-                                model=agent.model,
-                                api_key=api_key,
-                                messages=messages_with_length,
-                                api_base=api_base,
-                            ):
-                                full_response += chunk
-                                await manager.broadcast(
-                                    {
-                                        "type": "agent_message_chunk",
-                                        "agent_id": agent.id,
-                                        "content": chunk,
-                                    },
-                                    conversation_id,
-                                )
-
-                            # Save agent message
-                            agent_msg = Message(
-                                conversation_id=int(conversation_id),
-                                sender_type="agent",
-                                sender_id=agent.id,
-                                content=full_response,
-                            )
-                            db.add(agent_msg)
-                            db.commit()
-                            db.refresh(agent_msg)
-                            logger.info(
-                                f"Agent {agent.name} sent message: {full_response[:50]}..."
-                            )
-
-                            # Send done event
-                            await manager.broadcast(
-                                {
-                                    "type": "agent_done",
-                                    "agent_id": agent.id,
-                                    "message": {
-                                        "id": agent_msg.id,
-                                        "content": full_response,
-                                        "sender_type": "agent",
-                                        "sender_id": agent.id,
-                                        "created_at": agent_msg.created_at.isoformat(),
-                                    },
-                                },
-                                conversation_id,
-                            )
-                        except Exception as e:
-                            logger.error(
-                                f"Agent {agent.name} error: {str(e)}", exc_info=True
-                            )
-                            await manager.broadcast(
-                                {
-                                    "type": "error",
-                                    "message": f"Agent {agent.name} error: {str(e)}",
-                                },
-                                conversation_id,
-                            )
-
-                    # Run all agent replies in parallel
-                    tasks = [stream_agent_reply(agent) for agent in replying_agents]
-                    await asyncio.gather(*tasks)
+                continue
 
     except WebSocketDisconnect:
         logger.info(f"WebSocket disconnected: conversation_id={conversation_id}")
         manager.disconnect(websocket, conversation_id)
+    finally:
+        reset_request_context(token)

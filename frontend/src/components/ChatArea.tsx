@@ -1,8 +1,15 @@
 import { useEffect, useRef } from 'react';
 import type { FC } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import type { Message } from '../types';
 import { useAgentStore, type Agent } from '../stores/agentStore';
 import { getAgentPalette, getAvatarIcon } from '../lib/agentPalette';
+
+/** Strip <think>...</think> blocks from model output */
+function stripThinking(text: string): string {
+  return text.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<think>[\s\S]*/g, '').trim();
+}
 
 interface ChatAreaProps {
   messages: Message[];
@@ -12,10 +19,17 @@ interface ChatAreaProps {
 
 export const ChatArea: FC<ChatAreaProps> = ({ messages, thinkingAgentId, thinkingAgentIds = [] }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const prevLengthRef = useRef(0);
   const { agents } = useAgentStore();
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const prevLen = prevLengthRef.current;
+    const curLen = messages.length;
+    // From 0 → N (conversation switch / initial load): jump instantly
+    // From N → N+M (new message / streaming): smooth scroll
+    const behavior = prevLen === 0 && curLen > 0 ? 'instant' : 'smooth';
+    messagesEndRef.current?.scrollIntoView({ behavior });
+    prevLengthRef.current = curLen;
   }, [messages, thinkingAgentId, thinkingAgentIds]);
 
   const getAgent = (agentId?: number) => {
@@ -97,7 +111,15 @@ export const ChatArea: FC<ChatAreaProps> = ({ messages, thinkingAgentId, thinkin
                       }
                   }
                 >
-                  {msg.content}
+                  {isUser ? (
+                    <span className="select-text">{msg.content}</span>
+                  ) : (
+                    <div className="select-text markdown-body">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {stripThinking(msg.content)}
+                      </ReactMarkdown>
+                    </div>
+                  )}
                 </div>
                 <span 
                   className="text-[10px] px-1"

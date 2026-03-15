@@ -21,7 +21,16 @@
       "Bash(cd D:/ChatTable/frontend && npx tailwindcss init -p)",
       "Bash(cd D:/ChatTable/frontend && npm exec tailwindcss init -p)",
       "Bash(cd D:/ChatTable/frontend && ./node_modules/.bin/tailwindcss init -p)",
-      "Bash(cd D:/ChatTable/frontend && timeout 5 npm run dev || echo \"Frontend started successfully\")"
+      "Bash(cd D:/ChatTable/frontend && timeout 5 npm run dev || echo \"Frontend started successfully\")",
+      "Bash(cd frontend:*)",
+      "Bash(cd D:/ChatTable/frontend && npm run build 2>&1 | tail -10)",
+      "Bash(cd D:/ChatTable/backend && uv add litellm)",
+      "Bash(cd D:/ChatTable/frontend && npm run build 2>&1)",
+      "Bash(cd D:/ChatTable/backend && timeout 3 uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 2>&1 || true)",
+      "Bash(cd D:/ChatTable/backend && python -c \"from app.main import app; print\\('Backend imports successfully'\\)\" 2>&1)",
+      "Bash(cd D:/ChatTable/backend && uv run python -c \"from app.main import app; print\\('Backend imports successfully'\\)\" 2>&1)",
+      "Bash(cd:*)",
+      "Bash(find:*)"
     ]
   }
 }

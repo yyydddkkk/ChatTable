@@ -4,12 +4,11 @@ from app.core.config import settings, get_logger
 logger = get_logger(__name__)
 
 # Database URL
-DATABASE_URL = "sqlite:///./chattable.db"
+DATABASE_URL = settings.database_url
 
 # Create engine
-engine = create_engine(
-    DATABASE_URL, echo=settings.debug, connect_args={"check_same_thread": False}
-)
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+engine = create_engine(DATABASE_URL, echo=settings.debug, connect_args=connect_args)
 
 # New columns to add to existing tables (table, column, type, default)
 _MIGRATIONS = [
@@ -37,6 +36,7 @@ def _run_migrations():
 def init_db():
     """Initialize database tables"""
     from app.models.agent import Agent
+    from app.models.autogen_checkpoint import AutogenCheckpoint
     from app.models.conversation import Conversation
     from app.models.message import Message
     from app.models.provider import Provider

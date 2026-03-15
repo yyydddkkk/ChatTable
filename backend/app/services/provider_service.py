@@ -5,6 +5,7 @@ from app.models.provider import Provider
 from app.schemas.provider import ProviderCreate, ProviderUpdate
 from app.repositories.provider import provider_repository
 from app.core.security import security_manager
+from app.core.cache import app_cache
 
 
 class ProviderService:
@@ -29,6 +30,7 @@ class ProviderService:
         db.add(provider)
         db.commit()
         db.refresh(provider)
+        app_cache.invalidate_prefix("provider:")
         return provider
 
     def update_provider(
@@ -49,9 +51,11 @@ class ProviderService:
         db.add(provider)
         db.commit()
         db.refresh(provider)
+        app_cache.invalidate_prefix("provider:")
         return provider
 
     def delete_provider(self, db: Session, provider_id: int) -> bool:
+        app_cache.invalidate_prefix("provider:")
         return self.repository.delete(db, provider_id)
 
 

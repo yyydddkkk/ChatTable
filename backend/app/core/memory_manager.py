@@ -46,6 +46,25 @@ class MemoryManager:
         ).all()
         return list(reversed(messages))
 
+    def build_messages_context(
+        self, db: Session, conversation_id: int, agent_id: int, limit: int = 10
+    ) -> list[dict]:
+        """Build conversation history as a proper messages list for LLM.
+
+        user messages → {"role": "user", ...}
+        current agent messages → {"role": "assistant", ...}
+        other agent messages → skipped
+        """
+        messages = self.get_recent_messages(db, conversation_id, limit)
+        result = []
+        for msg in messages:
+            if msg.sender_type == "user":
+                result.append({"role": "user", "content": msg.content})
+            elif msg.sender_type == "agent" and msg.sender_id == agent_id:
+                result.append({"role": "assistant", "content": msg.content})
+            # skip other agents' messages
+        return result
+
     def build_context(self, db: Session, conversation_id: int, agent_id: int) -> str:
         """构建上下文"""
         memory = self.get_memory(db, conversation_id, agent_id)

@@ -122,7 +122,11 @@ export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail
           return newSet;
         });
         streamingAgentIds.current.delete(data.agent_id);
-        useConversationStore.getState().addMessage(data.message);
+        if (data.error) {
+          console.error('Agent error:', data.error_message);
+        } else if (data.message) {
+          useConversationStore.getState().addMessage(data.message);
+        }
         setStreamingMessages((prev) => {
           const newMap = new Map(prev);
           newMap.delete(data.agent_id);
@@ -130,13 +134,7 @@ export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail
         });
       } else if (data.type === 'error') {
         console.error('WebSocket error:', data.message);
-        if (data.agent_id) {
-          setThinkingAgents((prev) => {
-            const newSet = new Set(prev);
-            newSet.delete(data.agent_id);
-            return newSet;
-          });
-        }
+        setThinkingAgents(new Set());
       } else if (data.type === 'length_set') {
         // length is now per-agent config, no local state needed
       } else if (data.type === 'topic_switched') {
