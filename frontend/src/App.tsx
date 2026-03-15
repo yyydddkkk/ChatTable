@@ -4,10 +4,13 @@ import { SessionList } from './components/SessionList';
 import ContactsPage from './pages/ContactsPage';
 import ChatPage from './pages/ChatPage';
 import SettingsPage from './pages/SettingsPage';
+import AuthPage from './pages/AuthPage';
 import AgentDetailSidebar from './components/AgentDetailSidebar';
 import { useAgentStore, type Agent } from './stores/agentStore';
+import { useAuthStore } from './stores/authStore';
 import { useConversationStore } from './stores/conversationStore';
 import { useProviderStore } from './stores/providerStore';
+import { authConstants } from './lib/auth';
 import { useTenantStore } from './stores/tenantStore';
 
 function App() {
@@ -17,6 +20,7 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showDetailSidebar, setShowDetailSidebar] = useState(false);
 
+  const { hydrateAuth, isAuthenticated, isLoading: isAuthLoading, logout } = useAuthStore();
   const { agents, fetchAgents, selectAgent } = useAgentStore();
   const {
     conversations,
@@ -29,12 +33,35 @@ function App() {
   const firstTenantRenderRef = useRef(true);
 
   useEffect(() => {
+    hydrateAuth();
+  }, [hydrateAuth]);
+
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      logout();
+    };
+
+    window.addEventListener(authConstants.unauthorizedEventName, handleUnauthorized);
+    return () => {
+      window.removeEventListener(authConstants.unauthorizedEventName, handleUnauthorized);
+    };
+  }, [logout]);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
     fetchAgents();
     fetchConversations();
     fetchProviders();
-  }, [tenantId, fetchAgents, fetchConversations, fetchProviders]);
+  }, [isAuthenticated, tenantId, fetchAgents, fetchConversations, fetchProviders]);
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
     if (firstTenantRenderRef.current) {
       firstTenantRenderRef.current = false;
       return;
@@ -47,7 +74,13 @@ function App() {
     selectAgent(null);
     setCurrentConversation(null);
     clearMessages();
-  }, [tenantId, selectAgent, setCurrentConversation, clearMessages]);
+  }, [
+    isAuthenticated,
+    tenantId,
+    selectAgent,
+    setCurrentConversation,
+    clearMessages,
+  ]);
 
   const handleSelectAgent = (agent: Agent | null) => {
     selectAgent(agent);
@@ -65,6 +98,18 @@ function App() {
   };
 
   const activeAgent = selectedAgentId ? agents.find((a) => a.id === selectedAgentId) : null;
+
+  if (isAuthLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[--color-background]">
+        <div className="text-sm text-[--color-text-muted]">Loading session...</div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <AuthPage />;
+  }
 
   return (
     <MainLayout currentView={currentView} onViewChange={setCurrentView}>

@@ -11,6 +11,7 @@ from app.core.config import get_logger, settings, setup_logging
 from app.core.database import engine, init_db
 from app.core.redis_client import redis_health
 from app.core.request_context import (
+    RequestContext,
     build_request_context,
     reset_request_context,
     set_request_context,
@@ -19,6 +20,7 @@ from app.core.websocket import manager
 from app.core.chat_handler import chat_handler
 from app.modules.engine.infrastructure.factory import create_chat_engine
 from app.modules.im.application.chat_application_service import ChatApplicationService
+from app.services.auth_service import auth_service
 
 logger = get_logger(__name__)
 chat_application_service = ChatApplicationService(
@@ -70,6 +72,32 @@ async def health():
 @app.websocket("/ws/{conversation_id}")
 async def websocket_endpoint(websocket: WebSocket, conversation_id: str):
     ctx = build_request_context(websocket.headers)
+    query_tenant_id = websocket.query_params.get("tenant_id")
+    query_access_token = websocket.query_params.get("access_token")
+
+    if query_access_token:
+        try:
+            payload = auth_service.decode_access_token(query_access_token)
+            token_tenant = str(payload.get("tenant_id") or "local")
+            token_user = str(payload.get("sub") or "anonymous")
+            if query_tenant_id and query_tenant_id != token_tenant:
+                await websocket.close(code=1008, reason="Tenant mismatch")
+                return
+            ctx = RequestContext(
+                tenant_id=token_tenant,
+                user_id=token_user,
+                request_id=ctx.request_id,
+            )
+        except Exception:
+            await websocket.close(code=1008, reason="Invalid token")
+            return
+    elif query_tenant_id:
+        ctx = RequestContext(
+            tenant_id=query_tenant_id,
+            user_id=ctx.user_id,
+            request_id=ctx.request_id,
+        )
+
     token = set_request_context(ctx)
 
     await manager.connect(websocket, conversation_id)

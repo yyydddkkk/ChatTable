@@ -5,6 +5,7 @@ from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.provider import Provider
 from app.models.app_settings import AppSettings
+from app.models.user import User
 
 __all__ = [
     "Agent",
@@ -14,4 +15,5 @@ __all__ = [
     "Message",
     "Provider",
     "AppSettings",
+    "User",
 ]

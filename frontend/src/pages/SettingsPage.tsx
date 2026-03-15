@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useAuthStore } from '../stores/authStore';
 import { useProviderStore, type Provider } from '../stores/providerStore';
 import { useTenantStore } from '../stores/tenantStore';
 import { MODEL_OPTIONS } from '../config/models';
@@ -13,6 +14,7 @@ const MODEL_DROPDOWN_OPTIONS = MODEL_OPTIONS.flatMap(group =>
 );
 
 export default function SettingsPage() {
+  const logout = useAuthStore((state) => state.logout);
   const {
     providers, settings, isLoading,
     fetchProviders, createProvider, updateProvider, deleteProvider,
@@ -303,6 +305,15 @@ export default function SettingsPage() {
               placeholder="选择模型"
             />
           </div>
+        </section>
+
+        <section className="mt-8">
+          <button
+            onClick={logout}
+            className="w-full py-2.5 rounded-lg text-sm font-medium text-white bg-slate-800 hover:bg-slate-900 transition"
+          >
+            Logout
+          </button>
         </section>
       </div>
     </div>

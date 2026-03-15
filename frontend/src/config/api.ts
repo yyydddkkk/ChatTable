@@ -6,6 +6,9 @@ export const API_CONFIG = {
 
 export const API_ENDPOINTS = {
   agents: `/api/${API_CONFIG.apiVersion}/agents`,
+  authLogin: `/api/${API_CONFIG.apiVersion}/auth/login`,
+  authMe: `/api/${API_CONFIG.apiVersion}/auth/me`,
+  authRegister: `/api/${API_CONFIG.apiVersion}/auth/register`,
   generatePersona: `/api/${API_CONFIG.apiVersion}/agents/generate`,
   conversations: `/api/${API_CONFIG.apiVersion}/conversations`,
   optimizePrompt: `/api/${API_CONFIG.apiVersion}/agents/optimize-prompt`,
@@ -14,13 +17,23 @@ export const API_ENDPOINTS = {
 } as const;
 
 export const WS_ENDPOINTS = {
-  conversation: (conversationId: number | string, tenantId?: string) => {
+  conversation: (
+    conversationId: number | string,
+    tenantId?: string,
+    accessToken?: string,
+  ) => {
     const base = `${API_CONFIG.wsBaseUrl}/ws/${conversationId}`;
-    if (!tenantId) {
+    if (!tenantId && !accessToken) {
       return base;
     }
 
-    const params = new URLSearchParams({ tenant_id: tenantId });
+    const params = new URLSearchParams();
+    if (tenantId) {
+      params.set('tenant_id', tenantId);
+    }
+    if (accessToken) {
+      params.set('access_token', accessToken);
+    }
     return `${base}?${params.toString()}`;
   },
 } as const;

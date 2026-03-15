@@ -1,5 +1,6 @@
 import type { WebSocketMessage, MessageHandler } from '../types';
 import { WS_ENDPOINTS } from '../config/api';
+import { getAccessTokenFromStorage } from '../lib/auth';
 import { getTenantIdFromStorage } from '../lib/tenant';
 
 class WebSocketService {
@@ -22,6 +23,7 @@ class WebSocketService {
     const wsUrl = WS_ENDPOINTS.conversation(
       this.conversationId,
       getTenantIdFromStorage(),
+      getAccessTokenFromStorage() ?? undefined,
     );
     this.ws = new WebSocket(wsUrl);
 

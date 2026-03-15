@@ -67,6 +67,7 @@ def init_db():
     from app.models.message import Message
     from app.models.provider import Provider
     from app.models.app_settings import AppSettings
+    from app.models.user import User
 
     SQLModel.metadata.create_all(engine)
     _run_migrations()

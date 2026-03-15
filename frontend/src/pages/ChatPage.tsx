@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useAgentStore, type Agent } from '../stores/agentStore';
+import { useAuthStore } from '../stores/authStore';
 import { useConversationStore } from '../stores/conversationStore';
 import type { Conversation, Message } from '../types';
 import { ChatArea } from '../components/ChatArea';
@@ -17,6 +18,7 @@ interface ChatPageProps {
 
 export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail }: ChatPageProps) {
   const { agents } = useAgentStore();
+  const accessToken = useAuthStore((state) => state.accessToken);
   const { currentConversation, messages, setCurrentConversation, createConversation, fetchConversations, addMessage } = useConversationStore();
   const tenantId = useTenantStore((state) => state.tenantId);
   const wsRef = useRef<WebSocket | null>(null);
@@ -97,7 +99,7 @@ export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail
     if (!conversationIdForWs) return;
 
     const websocket = new WebSocket(
-      WS_ENDPOINTS.conversation(conversationIdForWs, tenantId),
+      WS_ENDPOINTS.conversation(conversationIdForWs, tenantId, accessToken ?? undefined),
     );
     wsRef.current = websocket;
 
@@ -155,7 +157,7 @@ export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail
       websocket.close();
       wsRef.current = null;
     };
-  }, [conversationIdForWs, tenantId]);
+  }, [conversationIdForWs, tenantId, accessToken]);
 
   const handleSend = useCallback((content: string) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
