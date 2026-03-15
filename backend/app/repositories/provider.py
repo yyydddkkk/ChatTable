@@ -7,10 +7,12 @@ from app.repositories.base import BaseRepository
 
 class ProviderRepository(BaseRepository[Provider, ProviderCreate, ProviderUpdate]):
     def get_by_id(self, db: Session, provider_id: int) -> Optional[Provider]:
-        return db.get(Provider, provider_id)
+        return self.get(db, provider_id)
 
     def get_by_name(self, db: Session, name: str) -> Optional[Provider]:
-        return db.exec(select(Provider).where(Provider.name == name)).first()
+        stmt = select(Provider).where(Provider.name == name)
+        stmt = self._apply_tenant_filter(stmt)
+        return db.exec(stmt).first()
 
 
 provider_repository = ProviderRepository(Provider)

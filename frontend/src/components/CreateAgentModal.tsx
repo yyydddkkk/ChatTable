@@ -4,6 +4,7 @@ import { useProviderStore } from '../stores/providerStore';
 import { X, Loader2, Bot, User, Sparkles, Wand2, Code, FlaskConical, Palette, BookOpen, Star, Lightbulb, AlertCircle, Zap } from 'lucide-react';
 import { MODEL_OPTIONS, getProviderNameForModel } from '../config/models';
 import { API_ENDPOINTS } from '../config/api';
+import { apiFetch } from '../services/http';
 import Dropdown from './Dropdown';
 
 interface CreateAgentModalProps {
@@ -75,7 +76,7 @@ export default function CreateAgentModal({ onClose }: CreateAgentModalProps) {
     setIsOptimizing(true);
     setOptimizeError('');
     try {
-      const res = await fetch(API_ENDPOINTS.optimizePrompt, {
+      const res = await apiFetch(API_ENDPOINTS.optimizePrompt, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: formData.system_prompt }),
@@ -98,7 +99,7 @@ export default function CreateAgentModal({ onClose }: CreateAgentModalProps) {
     setIsGenerating(true);
     setOptimizeError('');
     try {
-      const res = await fetch(API_ENDPOINTS.generatePersona, {
+      const res = await apiFetch(API_ENDPOINTS.generatePersona, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ description: generateDesc }),

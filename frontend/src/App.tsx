@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MainLayout } from './components/MainLayout';
 import { SessionList } from './components/SessionList';
 import ContactsPage from './pages/ContactsPage';
@@ -8,6 +8,7 @@ import AgentDetailSidebar from './components/AgentDetailSidebar';
 import { useAgentStore, type Agent } from './stores/agentStore';
 import { useConversationStore } from './stores/conversationStore';
 import { useProviderStore } from './stores/providerStore';
+import { useTenantStore } from './stores/tenantStore';
 
 function App() {
   const [currentView, setCurrentView] = useState<'contacts' | 'chat' | 'settings'>('contacts');
@@ -17,14 +18,36 @@ function App() {
   const [showDetailSidebar, setShowDetailSidebar] = useState(false);
 
   const { agents, fetchAgents, selectAgent } = useAgentStore();
-  const { conversations, fetchConversations } = useConversationStore();
+  const {
+    conversations,
+    fetchConversations,
+    setCurrentConversation,
+    clearMessages,
+  } = useConversationStore();
   const { fetchProviders } = useProviderStore();
+  const tenantId = useTenantStore((state) => state.tenantId);
+  const firstTenantRenderRef = useRef(true);
 
   useEffect(() => {
     fetchAgents();
     fetchConversations();
     fetchProviders();
-  }, [fetchAgents, fetchConversations, fetchProviders]);
+  }, [tenantId, fetchAgents, fetchConversations, fetchProviders]);
+
+  useEffect(() => {
+    if (firstTenantRenderRef.current) {
+      firstTenantRenderRef.current = false;
+      return;
+    }
+
+    setSelectedAgentId(null);
+    setSelectedConversationId(null);
+    setShowDetailSidebar(false);
+    setCurrentView('contacts');
+    selectAgent(null);
+    setCurrentConversation(null);
+    clearMessages();
+  }, [tenantId, selectAgent, setCurrentConversation, clearMessages]);
 
   const handleSelectAgent = (agent: Agent | null) => {
     selectAgent(agent);

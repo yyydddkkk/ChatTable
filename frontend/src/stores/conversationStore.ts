@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import type { Conversation, Message } from '../types';
 import { API_ENDPOINTS } from '../config/api';
+import { apiFetch } from '../services/http';
 
 interface ConversationStore {
   conversations: Conversation[];
@@ -32,7 +33,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const response = await fetch(API_BASE, { signal: controller.signal });
+      const response = await apiFetch(API_BASE, { signal: controller.signal });
       clearTimeout(timeoutId);
       if (!response.ok) throw new Error('Failed to fetch conversations');
       const conversations = await response.json();
@@ -49,7 +50,7 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const response = await fetch(API_BASE, {
+      const response = await apiFetch(API_BASE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -81,7 +82,9 @@ export const useConversationStore = create<ConversationStore>((set, get) => ({
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
-      const response = await fetch(`${API_BASE}/${conversationId}/messages`, { signal: controller.signal });
+      const response = await apiFetch(`${API_BASE}/${conversationId}/messages`, {
+        signal: controller.signal,
+      });
       clearTimeout(timeoutId);
       if (!response.ok) throw new Error('Failed to fetch messages');
       const messages = await response.json();

@@ -17,6 +17,7 @@ from app.core.length_control import length_controller
 from app.core.memory_manager import memory_manager
 from app.core.redis_client import get_redis_client
 from app.core.security import security_manager
+from app.core.tenant import get_current_tenant_id
 from app.core.topic_detector import topic_detector
 from app.core.websocket import ConnectionManager
 from app.models.agent import Agent
@@ -50,8 +51,12 @@ class AutogenChatEngine(ChatEnginePort):
         ws_manager: ConnectionManager,
     ) -> None:
         conv_id = int(conversation_id)
+        tenant_id = get_current_tenant_id()
         messages = db.exec(
-            select(Message).where(Message.conversation_id == conv_id)
+            select(Message).where(
+                Message.conversation_id == conv_id,
+                Message.tenant_id == tenant_id,
+            )
         ).all()
         for msg in messages:
             db.delete(msg)
@@ -62,7 +67,10 @@ class AutogenChatEngine(ChatEnginePort):
         self._signature_by_conversation.pop(conv_id, None)
         self._lock_by_conversation.pop(conv_id, None)
         checkpoint = db.exec(
-            select(AutogenCheckpoint).where(AutogenCheckpoint.conversation_id == conv_id)
+            select(AutogenCheckpoint).where(
+                AutogenCheckpoint.conversation_id == conv_id,
+                AutogenCheckpoint.tenant_id == tenant_id,
+            )
         ).first()
         if checkpoint:
             db.delete(checkpoint)
@@ -83,9 +91,11 @@ class AutogenChatEngine(ChatEnginePort):
         conversation_lengths: Dict[int, int],
     ) -> None:
         conv_id = int(conversation_id)
+        tenant_id = get_current_tenant_id()
 
         user_msg = Message(
             conversation_id=conv_id,
+            tenant_id=tenant_id,
             sender_type="user",
             content=content,
         )
@@ -106,7 +116,12 @@ class AutogenChatEngine(ChatEnginePort):
             conversation_id,
         )
 
-        conversation = db.get(Conversation, conv_id)
+        conversation = db.exec(
+            select(Conversation).where(
+                Conversation.id == conv_id,
+                Conversation.tenant_id == tenant_id,
+            )
+        ).first()
         if not conversation:
             logger.warning("Conversation not found: %s", conversation_id)
             return
@@ -270,6 +285,7 @@ class AutogenChatEngine(ChatEnginePort):
 
                 agent_msg = Message(
                     conversation_id=conv_id,
+                    tenant_id=tenant_id,
                     sender_type="agent",
                     sender_id=agent.id,
                     content=full_response,
@@ -315,11 +331,17 @@ class AutogenChatEngine(ChatEnginePort):
     def _build_model_client(self, db: Session, agent: Agent) -> OpenAIChatCompletionClient:
         if not agent.provider_id:
             raise ValueError(f"Agent {agent.name} is missing provider config")
+        tenant_id = get_current_tenant_id()
 
-        cache_key = f"provider:{agent.provider_id}"
+        cache_key = f"provider:{tenant_id}:{agent.provider_id}"
         provider_data = app_cache.get(cache_key)
         if provider_data is None:
-            provider = db.get(Provider, agent.provider_id)
+            provider = db.exec(
+                select(Provider).where(
+                    Provider.id == agent.provider_id,
+                    Provider.tenant_id == tenant_id,
+                )
+            ).first()
             if not provider:
                 raise ValueError(f"Provider {agent.provider_id} not found")
             provider_data = {"api_key": provider.api_key, "api_base": provider.api_base}
@@ -342,8 +364,12 @@ class AutogenChatEngine(ChatEnginePort):
         )
 
     def _load_checkpoint(self, db: Session, conversation_id: int) -> tuple[tuple[int, ...] | None, dict | None]:
+        tenant_id = get_current_tenant_id()
         row = db.exec(
-            select(AutogenCheckpoint).where(AutogenCheckpoint.conversation_id == conversation_id)
+            select(AutogenCheckpoint).where(
+                AutogenCheckpoint.conversation_id == conversation_id,
+                AutogenCheckpoint.tenant_id == tenant_id,
+            )
         ).first()
         if not row:
             return None, None
@@ -364,13 +390,17 @@ class AutogenChatEngine(ChatEnginePort):
         state: dict,
     ) -> None:
         row = db.exec(
-            select(AutogenCheckpoint).where(AutogenCheckpoint.conversation_id == conversation_id)
+            select(AutogenCheckpoint).where(
+                AutogenCheckpoint.conversation_id == conversation_id,
+                AutogenCheckpoint.tenant_id == get_current_tenant_id(),
+            )
         ).first()
         signature_str = ",".join(str(x) for x in signature)
         state_json = json.dumps(state, ensure_ascii=False)
         if row is None:
             row = AutogenCheckpoint(
                 conversation_id=conversation_id,
+                tenant_id=get_current_tenant_id(),
                 agent_signature=signature_str,
                 state_json=state_json,
                 updated_at=datetime.now(),

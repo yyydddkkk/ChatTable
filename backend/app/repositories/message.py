@@ -10,17 +10,19 @@ class MessageRepository(BaseRepository[Message, MessageCreate, BaseModel]):
     def get_by_conversation(
         self, db: Session, conversation_id: int, skip: int = 0, limit: int = 50
     ) -> list[Message]:
-        return db.exec(
+        stmt = (
             select(Message)
             .where(Message.conversation_id == conversation_id)
             .offset(skip)
             .limit(limit)
-        ).all()
+        )
+        stmt = self._apply_tenant_filter(stmt)
+        return db.exec(stmt).all()
 
     def get_by_agent(
         self, db: Session, agent_id: int, conversation_id: int, limit: int = 20
     ) -> list[Message]:
-        return db.exec(
+        stmt = (
             select(Message)
             .where(
                 Message.sender_id == agent_id,
@@ -28,7 +30,9 @@ class MessageRepository(BaseRepository[Message, MessageCreate, BaseModel]):
             )
             .order_by(Message.created_at.desc())
             .limit(limit)
-        ).all()
+        )
+        stmt = self._apply_tenant_filter(stmt)
+        return db.exec(stmt).all()
 
 
 message_repository = MessageRepository(Message)

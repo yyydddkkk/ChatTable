@@ -1,7 +1,7 @@
 export const API_CONFIG = {
   baseUrl: '',
   apiVersion: 'v1',
-  wsProtocol: 'ws',
+  wsBaseUrl: 'ws://localhost:8000',
 } as const;
 
 export const API_ENDPOINTS = {
@@ -14,6 +14,13 @@ export const API_ENDPOINTS = {
 } as const;
 
 export const WS_ENDPOINTS = {
-  conversation: (conversationId: number | string) =>
-    `${API_CONFIG.wsProtocol}://localhost:8000/ws/${conversationId}`,
+  conversation: (conversationId: number | string, tenantId?: string) => {
+    const base = `${API_CONFIG.wsBaseUrl}/ws/${conversationId}`;
+    if (!tenantId) {
+      return base;
+    }
+
+    const params = new URLSearchParams({ tenant_id: tenantId });
+    return `${base}?${params.toString()}`;
+  },
 } as const;

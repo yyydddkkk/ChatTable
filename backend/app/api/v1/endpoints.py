@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlmodel import Session
+from sqlmodel import Session, select
 from typing import List
 from pydantic import BaseModel
 
@@ -12,6 +12,8 @@ from app.services.agent_service import agent_service
 from app.services.conversation_service import conversation_service
 from app.services.provider_service import provider_service
 from app.models.app_settings import AppSettings
+from app.core.audit import log_audit
+from app.core.tenant import get_current_tenant_id
 
 router = APIRouter()
 
@@ -145,9 +147,13 @@ class AppSettingsUpdate(BaseModel):
 
 @router.get("/settings", response_model=AppSettingsResponse)
 def get_settings(db: Session = Depends(get_db)):
-    settings = db.get(AppSettings, 1)
+    tenant_id = get_current_tenant_id()
+    settings = db.exec(
+        select(AppSettings).where(AppSettings.tenant_id == tenant_id)
+    ).first()
     if not settings:
-        settings = AppSettings(id=1)
+        next_id = (db.exec(select(AppSettings.id).order_by(AppSettings.id.desc())).first() or 0) + 1
+        settings = AppSettings(id=next_id, tenant_id=tenant_id)
         db.add(settings)
         db.commit()
         db.refresh(settings)
@@ -156,9 +162,13 @@ def get_settings(db: Session = Depends(get_db)):
 
 @router.put("/settings", response_model=AppSettingsResponse)
 def update_settings(data: AppSettingsUpdate, db: Session = Depends(get_db)):
-    settings = db.get(AppSettings, 1)
+    tenant_id = get_current_tenant_id()
+    settings = db.exec(
+        select(AppSettings).where(AppSettings.tenant_id == tenant_id)
+    ).first()
     if not settings:
-        settings = AppSettings(id=1)
+        next_id = (db.exec(select(AppSettings.id).order_by(AppSettings.id.desc())).first() or 0) + 1
+        settings = AppSettings(id=next_id, tenant_id=tenant_id)
         db.add(settings)
         db.commit()
         db.refresh(settings)
@@ -169,6 +179,14 @@ def update_settings(data: AppSettingsUpdate, db: Session = Depends(get_db)):
     db.add(settings)
     db.commit()
     db.refresh(settings)
+    log_audit(
+        db,
+        action="settings.update",
+        resource="app_settings",
+        resource_id=str(settings.id),
+        details={"fields": list(update_data.keys())},
+    )
+    db.commit()
     return settings
 
 

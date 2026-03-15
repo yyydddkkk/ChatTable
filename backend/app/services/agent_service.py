@@ -1,11 +1,13 @@
 from typing import Optional
 from datetime import datetime
 import json
-from sqlmodel import Session
+from sqlmodel import Session, select
 from app.models.agent import Agent
 from app.schemas.agent import AgentCreate, AgentUpdate
 from app.repositories.agent import agent_repository
+from app.core.audit import log_audit
 from app.core.cache import app_cache
+from app.core.tenant import get_current_tenant_id
 
 
 class AgentService:
@@ -19,10 +21,18 @@ class AgentService:
         return self.repository.get_by_id(db, agent_id)
 
     def create_agent(self, db: Session, agent_in: AgentCreate) -> Agent:
-        agent = Agent(**agent_in.model_dump())
+        agent = Agent(**agent_in.model_dump(), tenant_id=get_current_tenant_id())
         db.add(agent)
         db.commit()
         db.refresh(agent)
+        log_audit(
+            db,
+            action="agent.create",
+            resource="agent",
+            resource_id=str(agent.id),
+            details={"name": agent.name},
+        )
+        db.commit()
         app_cache.invalidate_prefix("agent:")
         return agent
 
@@ -41,10 +51,25 @@ class AgentService:
         db.add(agent)
         db.commit()
         db.refresh(agent)
+        log_audit(
+            db,
+            action="agent.update",
+            resource="agent",
+            resource_id=str(agent.id),
+            details={"fields": list(update_data.keys())},
+        )
+        db.commit()
         app_cache.invalidate_prefix("agent:")
         return agent
 
     def delete_agent(self, db: Session, agent_id: int) -> bool:
+        log_audit(
+            db,
+            action="agent.delete",
+            resource="agent",
+            resource_id=str(agent_id),
+        )
+        db.commit()
         app_cache.invalidate_prefix("agent:")
         return self.repository.delete(db, agent_id)
 
@@ -58,6 +83,14 @@ class AgentService:
         db.add(agent)
         db.commit()
         db.refresh(agent)
+        log_audit(
+            db,
+            action="agent.toggle_active",
+            resource="agent",
+            resource_id=str(agent.id),
+            details={"is_active": agent.is_active},
+        )
+        db.commit()
         return agent
 
     @staticmethod
@@ -97,11 +130,19 @@ class AgentService:
         import httpx
 
         with Session(engine) as db:
-            app_settings = db.get(AppSettings, 1)
+            tenant_id = get_current_tenant_id()
+            app_settings = db.exec(
+                select(AppSettings).where(AppSettings.tenant_id == tenant_id)
+            ).first()
             if not app_settings or not app_settings.optimizer_provider_id:
                 raise ValueError("请先在设置中配置 AI 优化的服务商")
 
-            provider = db.get(Provider, app_settings.optimizer_provider_id)
+            provider = db.exec(
+                select(Provider).where(
+                    Provider.id == app_settings.optimizer_provider_id,
+                    Provider.tenant_id == tenant_id,
+                )
+            ).first()
             if not provider:
                 raise ValueError("优化服务商不存在，请检查设置")
 

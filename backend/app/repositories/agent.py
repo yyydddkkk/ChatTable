@@ -7,21 +7,25 @@ from app.repositories.base import BaseRepository
 
 class AgentRepository(BaseRepository[Agent, AgentCreate, AgentUpdate]):
     def get_by_id(self, db: Session, agent_id: int) -> Optional[Agent]:
-        return db.get(Agent, agent_id)
+        return self.get(db, agent_id)
 
     def get_active_agents(
         self, db: Session, skip: int = 0, limit: int = 100
     ) -> list[Agent]:
-        return db.exec(
+        stmt = (
             select(Agent).where(Agent.is_active == True).offset(skip).limit(limit)
-        ).all()
+        )
+        stmt = self._apply_tenant_filter(stmt)
+        return db.exec(stmt).all()
 
     def get_public_agents(
         self, db: Session, skip: int = 0, limit: int = 100
     ) -> list[Agent]:
-        return db.exec(
+        stmt = (
             select(Agent).where(Agent.is_public == True).offset(skip).limit(limit)
-        ).all()
+        )
+        stmt = self._apply_tenant_filter(stmt)
+        return db.exec(stmt).all()
 
 
 agent_repository = AgentRepository(Agent)

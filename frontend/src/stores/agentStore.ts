@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { API_ENDPOINTS } from '../config/api';
+import { apiFetch } from '../services/http';
 
 export interface Agent {
   id: number;
@@ -49,7 +50,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
   fetchAgents: async () => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(API_BASE);
+      const response = await apiFetch(API_BASE);
       if (!response.ok) {
         throw new Error('Failed to fetch agents');
       }
@@ -63,7 +64,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
   createAgent: async (data: Partial<Agent>) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(API_BASE, {
+      const response = await apiFetch(API_BASE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -87,7 +88,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
   updateAgent: async (id: number, data: Partial<Agent>) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(`${API_BASE}/${id}`, {
+      const response = await apiFetch(`${API_BASE}/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -112,7 +113,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
   deleteAgent: async (id: number) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(`${API_BASE}/${id}`, {
+      const response = await apiFetch(`${API_BASE}/${id}`, {
         method: 'DELETE',
       });
       if (!response.ok) {
@@ -137,7 +138,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
   toggleActive: async (id: number) => {
     set({ isLoading: true, error: null });
     try {
-      const response = await fetch(`${API_BASE}/${id}/toggle-active`, {
+      const response = await apiFetch(`${API_BASE}/${id}/toggle-active`, {
         method: 'POST',
       });
       if (!response.ok) {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useProviderStore, type Provider } from '../stores/providerStore';
+import { useTenantStore } from '../stores/tenantStore';
 import { MODEL_OPTIONS } from '../config/models';
 import { Plus, Trash2, Edit2, Save, X, Loader2, Server, Wand2 } from 'lucide-react';
 import Dropdown from '../components/Dropdown';
@@ -17,17 +18,24 @@ export default function SettingsPage() {
     fetchProviders, createProvider, updateProvider, deleteProvider,
     fetchSettings, updateSettings,
   } = useProviderStore();
+  const tenantId = useTenantStore((state) => state.tenantId);
+  const setTenantId = useTenantStore((state) => state.setTenantId);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({ name: '', api_key: '', api_base: '' });
   const [editData, setEditData] = useState({ name: '', api_key: '', api_base: '' });
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+  const [tenantInput, setTenantInput] = useState(tenantId);
 
   useEffect(() => {
     fetchProviders();
     fetchSettings();
-  }, [fetchProviders, fetchSettings]);
+  }, [fetchProviders, fetchSettings, tenantId]);
+
+  useEffect(() => {
+    setTenantInput(tenantId);
+  }, [tenantId]);
 
   const handleAdd = async () => {
     if (!formData.name.trim() || !formData.api_key.trim() || !formData.api_base.trim()) return;
@@ -64,10 +72,40 @@ export default function SettingsPage() {
     label: `${p.name} (${p.api_base})`,
   }));
 
+  const handleApplyTenant = () => {
+    setTenantId(tenantInput);
+  };
+
   return (
     <div className="flex-1 overflow-y-auto bg-[--color-background]">
       <div className="max-w-2xl mx-auto py-8 px-6">
         <h1 className="text-2xl font-semibold text-text mb-8">设置</h1>
+
+        <section className="mb-10">
+          <div className="bg-surface rounded-xl p-4" style={{ border: '1px solid rgba(0,0,0,0.06)' }}>
+            <h2 className="text-lg font-medium text-text mb-3">Tenant</h2>
+            <p className="text-sm text-text-muted mb-3">
+              Current: <span className="font-medium text-text">{tenantId}</span>
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={tenantInput}
+                onChange={(e) => setTenantInput(e.target.value)}
+                placeholder="local / team-a / team-b"
+                className="flex-1 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                style={{ border: '1px solid rgba(0,0,0,0.06)' }}
+              />
+              <button
+                onClick={handleApplyTenant}
+                disabled={isLoading}
+                className="px-4 py-2 bg-primary text-white rounded-lg hover:opacity-90 transition disabled:opacity-50 text-sm"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        </section>
 
         {/* Section A: Providers */}
         <section className="mb-10">

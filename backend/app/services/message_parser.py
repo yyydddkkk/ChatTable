@@ -1,8 +1,11 @@
 import re
+import json
+import ast
 from typing import List, Tuple, Optional
 from sqlmodel import Session, select
 from app.models.agent import Agent
 from app.models.conversation import Conversation
+from app.core.tenant import get_current_tenant_id
 
 
 def parse_mentions(content: str, agents: List[Agent]) -> Tuple[str, List[int]]:
@@ -26,13 +29,25 @@ def parse_mentions(content: str, agents: List[Agent]) -> Tuple[str, List[int]]:
 
 def get_conversation_agents(db: Session, conversation_id: int) -> List[Agent]:
     """Get all agents in a conversation"""
-    conversation = db.get(Conversation, conversation_id)
+    tenant_id = get_current_tenant_id()
+    conversation = db.exec(
+        select(Conversation).where(
+            Conversation.id == conversation_id,
+            Conversation.tenant_id == tenant_id,
+        )
+    ).first()
     if not conversation:
         return []
 
     try:
-        member_ids = eval(conversation.members) if conversation.members else []
-    except:
+        member_ids = json.loads(conversation.members) if conversation.members else []
+    except Exception:
+        try:
+            member_ids = ast.literal_eval(conversation.members) if conversation.members else []
+        except Exception:
+            member_ids = []
+
+    if not isinstance(member_ids, list):
         member_ids = []
 
     if not member_ids:
@@ -40,7 +55,12 @@ def get_conversation_agents(db: Session, conversation_id: int) -> List[Agent]:
 
     agents = []
     for agent_id in member_ids:
-        agent = db.get(Agent, agent_id)
+        agent = db.exec(
+            select(Agent).where(
+                Agent.id == agent_id,
+                Agent.tenant_id == tenant_id,
+            )
+        ).first()
         if agent and agent.is_active:
             agents.append(agent)
 

@@ -17,6 +17,7 @@ from app.core.decision_engine import decision_engine
 from app.core.length_control import length_controller
 from app.core.memory_manager import memory_manager
 from app.core.topic_detector import topic_detector
+from app.core.tenant import get_current_tenant_id
 from app.core.websocket import ConnectionManager
 from app.models.agent import Agent
 from app.models.conversation import Conversation
@@ -43,8 +44,12 @@ class ChatHandler:
     ) -> None:
         """Clear all messages and memory for a conversation."""
         logger.info("Clearing conversation %s", conversation_id)
+        tenant_id = get_current_tenant_id()
         messages = db.exec(
-            select(Message).where(Message.conversation_id == int(conversation_id))
+            select(Message).where(
+                Message.conversation_id == int(conversation_id),
+                Message.tenant_id == tenant_id,
+            )
         ).all()
         for msg in messages:
             db.delete(msg)
@@ -67,9 +72,11 @@ class ChatHandler:
     ) -> None:
         """Save user message, run decision engine, orchestrate agent replies."""
         logger.info("User message in conversation %s: %s...", conversation_id, content[:50])
+        tenant_id = get_current_tenant_id()
 
         user_msg = Message(
             conversation_id=int(conversation_id),
+            tenant_id=tenant_id,
             sender_type="user",
             content=content,
         )
@@ -90,7 +97,12 @@ class ChatHandler:
             conversation_id,
         )
 
-        conversation = db.get(Conversation, int(conversation_id))
+        conversation = db.exec(
+            select(Conversation).where(
+                Conversation.id == int(conversation_id),
+                Conversation.tenant_id == tenant_id,
+            )
+        ).first()
         if not conversation:
             logger.warning("Conversation not found: %s", conversation_id)
             return
@@ -254,10 +266,12 @@ class ChatHandler:
 
     @staticmethod
     def _get_latest_agent_reply(db: Session, conversation_id: int, agent_id: int) -> Message | None:
+        tenant_id = get_current_tenant_id()
         return db.exec(
             select(Message)
             .where(
                 Message.conversation_id == conversation_id,
+                Message.tenant_id == tenant_id,
                 Message.sender_type == "agent",
                 Message.sender_id == agent_id,
             )
@@ -273,10 +287,12 @@ class ChatHandler:
         agents: list[Agent],
         seed_message: str,
     ) -> str:
+        tenant_id = get_current_tenant_id()
         recent_messages = db.exec(
             select(Message)
             .where(
                 Message.conversation_id == conversation_id,
+                Message.tenant_id == tenant_id,
                 Message.sender_type == "agent",
             )
             .order_by(Message.id.desc())  # type: ignore[union-attr]
@@ -337,10 +353,16 @@ class ChatHandler:
     ) -> bool:
         """Stream reply for a single agent. Returns True if a substantive reply was produced."""
         try:
-            cache_key = f"provider:{agent.provider_id}"
+            tenant_id = get_current_tenant_id()
+            cache_key = f"provider:{tenant_id}:{agent.provider_id}"
             provider_data = app_cache.get(cache_key) if agent.provider_id else None
             if provider_data is None and agent.provider_id:
-                provider = db.get(Provider, agent.provider_id)
+                provider = db.exec(
+                    select(Provider).where(
+                        Provider.id == agent.provider_id,
+                        Provider.tenant_id == tenant_id,
+                    )
+                ).first()
                 if provider:
                     provider_data = {"api_key": provider.api_key, "api_base": provider.api_base}
                     app_cache.set(cache_key, provider_data, ttl=120)
@@ -421,6 +443,7 @@ class ChatHandler:
 
             agent_msg = Message(
                 conversation_id=int(conversation_id),
+                tenant_id=tenant_id,
                 sender_type="agent",
                 sender_id=agent.id,
                 content=full_response,

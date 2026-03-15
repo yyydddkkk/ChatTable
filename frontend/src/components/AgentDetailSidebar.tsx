@@ -5,6 +5,7 @@ import { X, Edit2, Trash2, Power, Loader2, Save, Wand2 } from 'lucide-react';
 import { getAvatarIcon } from '../lib/agentPalette';
 import { API_ENDPOINTS } from '../config/api';
 import { MODEL_OPTIONS, getProviderNameForModel } from '../config/models';
+import { apiFetch } from '../services/http';
 import Dropdown from './Dropdown';
 
 interface AgentDetailSidebarProps {
@@ -62,7 +63,7 @@ export default function AgentDetailSidebar({ agent, onClose }: AgentDetailSideba
     setIsOptimizing(true);
     setOptimizeError('');
     try {
-      const res = await fetch(API_ENDPOINTS.optimizePrompt, {
+      const res = await apiFetch(API_ENDPOINTS.optimizePrompt, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: formData.system_prompt }),

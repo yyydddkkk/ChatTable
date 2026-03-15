@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { API_ENDPOINTS } from '../config/api';
+import { apiFetch } from '../services/http';
 
 export interface Provider {
   id: number;
@@ -37,7 +38,7 @@ export const useProviderStore = create<ProviderStore>((set) => ({
   fetchProviders: async () => {
     set({ isLoading: true, error: null });
     try {
-      const res = await fetch(API_ENDPOINTS.providers);
+      const res = await apiFetch(API_ENDPOINTS.providers);
       if (!res.ok) throw new Error('Failed to fetch providers');
       const providers = await res.json();
       set({ providers, isLoading: false });
@@ -49,7 +50,7 @@ export const useProviderStore = create<ProviderStore>((set) => ({
   createProvider: async (data) => {
     set({ isLoading: true, error: null });
     try {
-      const res = await fetch(API_ENDPOINTS.providers, {
+      const res = await apiFetch(API_ENDPOINTS.providers, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -67,7 +68,7 @@ export const useProviderStore = create<ProviderStore>((set) => ({
   updateProvider: async (id, data) => {
     set({ isLoading: true, error: null });
     try {
-      const res = await fetch(`${API_ENDPOINTS.providers}/${id}`, {
+      const res = await apiFetch(`${API_ENDPOINTS.providers}/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -88,7 +89,7 @@ export const useProviderStore = create<ProviderStore>((set) => ({
   deleteProvider: async (id) => {
     set({ isLoading: true, error: null });
     try {
-      const res = await fetch(`${API_ENDPOINTS.providers}/${id}`, { method: 'DELETE' });
+      const res = await apiFetch(`${API_ENDPOINTS.providers}/${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete provider');
       set((s) => ({
         providers: s.providers.filter((p) => p.id !== id),
@@ -103,7 +104,7 @@ export const useProviderStore = create<ProviderStore>((set) => ({
 
   fetchSettings: async () => {
     try {
-      const res = await fetch(API_ENDPOINTS.settings);
+      const res = await apiFetch(API_ENDPOINTS.settings);
       if (!res.ok) return;
       const settings = await res.json();
       set({ settings });
@@ -114,7 +115,7 @@ export const useProviderStore = create<ProviderStore>((set) => ({
 
   updateSettings: async (data) => {
     try {
-      const res = await fetch(API_ENDPOINTS.settings, {
+      const res = await apiFetch(API_ENDPOINTS.settings, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),

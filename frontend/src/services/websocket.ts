@@ -1,5 +1,6 @@
 import type { WebSocketMessage, MessageHandler } from '../types';
 import { WS_ENDPOINTS } from '../config/api';
+import { getTenantIdFromStorage } from '../lib/tenant';
 
 class WebSocketService {
   private ws: WebSocket | null = null;
@@ -18,7 +19,10 @@ class WebSocketService {
   private createConnection() {
     if (!this.conversationId) return;
 
-    const wsUrl = WS_ENDPOINTS.conversation(this.conversationId);
+    const wsUrl = WS_ENDPOINTS.conversation(
+      this.conversationId,
+      getTenantIdFromStorage(),
+    );
     this.ws = new WebSocket(wsUrl);
 
     this.ws.onopen = () => {
@@ -114,4 +118,3 @@ class WebSocketService {
 }
 
 export const websocketService = new WebSocketService();
-

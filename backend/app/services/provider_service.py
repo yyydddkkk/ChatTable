@@ -4,8 +4,10 @@ from sqlmodel import Session
 from app.models.provider import Provider
 from app.schemas.provider import ProviderCreate, ProviderUpdate
 from app.repositories.provider import provider_repository
+from app.core.audit import log_audit
 from app.core.security import security_manager
 from app.core.cache import app_cache
+from app.core.tenant import get_current_tenant_id
 
 
 class ProviderService:
@@ -23,6 +25,7 @@ class ProviderService:
 
     def create_provider(self, db: Session, data: ProviderCreate) -> Provider:
         provider = Provider(
+            tenant_id=get_current_tenant_id(),
             name=data.name,
             api_key=security_manager.encrypt(data.api_key),
             api_base=data.api_base,
@@ -30,6 +33,14 @@ class ProviderService:
         db.add(provider)
         db.commit()
         db.refresh(provider)
+        log_audit(
+            db,
+            action="provider.create",
+            resource="provider",
+            resource_id=str(provider.id),
+            details={"name": provider.name},
+        )
+        db.commit()
         app_cache.invalidate_prefix("provider:")
         return provider
 
@@ -51,10 +62,25 @@ class ProviderService:
         db.add(provider)
         db.commit()
         db.refresh(provider)
+        log_audit(
+            db,
+            action="provider.update",
+            resource="provider",
+            resource_id=str(provider.id),
+            details={"fields": list(update_data.keys())},
+        )
+        db.commit()
         app_cache.invalidate_prefix("provider:")
         return provider
 
     def delete_provider(self, db: Session, provider_id: int) -> bool:
+        log_audit(
+            db,
+            action="provider.delete",
+            resource="provider",
+            resource_id=str(provider_id),
+        )
+        db.commit()
         app_cache.invalidate_prefix("provider:")
         return self.repository.delete(db, provider_id)
 

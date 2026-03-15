@@ -10,7 +10,7 @@ class ConversationRepository(
     BaseRepository[Conversation, ConversationCreate, BaseModel]
 ):
     def get_by_id(self, db: Session, conversation_id: int) -> Optional[Conversation]:
-        return db.get(Conversation, conversation_id)
+        return self.get(db, conversation_id)
 
 
 conversation_repository = ConversationRepository(Conversation)

@@ -6,6 +6,7 @@ import { ChatArea } from '../components/ChatArea';
 import MessageInput from '../components/MessageInput';
 import { ChatHeader } from '../components/ChatHeader';
 import { WS_ENDPOINTS } from '../config/api';
+import { useTenantStore } from '../stores/tenantStore';
 
 interface ChatPageProps {
   agentId?: number;
@@ -17,6 +18,7 @@ interface ChatPageProps {
 export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail }: ChatPageProps) {
   const { agents } = useAgentStore();
   const { currentConversation, messages, setCurrentConversation, createConversation, fetchConversations, addMessage } = useConversationStore();
+  const tenantId = useTenantStore((state) => state.tenantId);
   const wsRef = useRef<WebSocket | null>(null);
   const [thinkingAgents, setThinkingAgents] = useState<Set<number>>(new Set());
   const [streamingMessages, setStreamingMessages] = useState<Map<number, string>>(new Map());
@@ -94,7 +96,9 @@ export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail
   useEffect(() => {
     if (!conversationIdForWs) return;
 
-    const websocket = new WebSocket(WS_ENDPOINTS.conversation(conversationIdForWs));
+    const websocket = new WebSocket(
+      WS_ENDPOINTS.conversation(conversationIdForWs, tenantId),
+    );
     wsRef.current = websocket;
 
     const handleMessage = (event: MessageEvent) => {
@@ -151,7 +155,7 @@ export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail
       websocket.close();
       wsRef.current = null;
     };
-  }, [conversationIdForWs]);
+  }, [conversationIdForWs, tenantId]);
 
   const handleSend = useCallback((content: string) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {

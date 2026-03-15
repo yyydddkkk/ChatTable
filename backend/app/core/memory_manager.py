@@ -3,6 +3,7 @@ from typing import List
 from sqlmodel import Session, select
 from app.models.memory import ConversationMemory
 from app.models.message import Message
+from app.core.tenant import get_current_tenant_id
 
 MAX_WORKING_MEMORY = 20
 
@@ -14,8 +15,10 @@ class MemoryManager:
         self, db: Session, conversation_id: int, agent_id: int
     ) -> ConversationMemory:
         """获取记忆"""
+        tenant_id = get_current_tenant_id()
         memory = db.exec(
             select(ConversationMemory).where(
+                ConversationMemory.tenant_id == tenant_id,
                 ConversationMemory.conversation_id == conversation_id,
                 ConversationMemory.agent_id == agent_id,
             )
@@ -23,6 +26,7 @@ class MemoryManager:
 
         if not memory:
             memory = ConversationMemory(
+                tenant_id=tenant_id,
                 conversation_id=conversation_id,
                 agent_id=agent_id,
                 messages="[]",
@@ -38,9 +42,13 @@ class MemoryManager:
         self, db: Session, conversation_id: int, limit: int = 20
     ) -> List[Message]:
         """获取最近消息"""
+        tenant_id = get_current_tenant_id()
         messages = db.exec(
             select(Message)
-            .where(Message.conversation_id == conversation_id)
+            .where(
+                Message.conversation_id == conversation_id,
+                Message.tenant_id == tenant_id,
+            )
             .order_by(Message.created_at.desc())
             .limit(limit)
         ).all()
@@ -106,8 +114,10 @@ class MemoryManager:
 
     def clear_memory(self, db: Session, conversation_id: int, agent_id: int):
         """清除指定 Agent 的记忆"""
+        tenant_id = get_current_tenant_id()
         memory = db.exec(
             select(ConversationMemory).where(
+                ConversationMemory.tenant_id == tenant_id,
                 ConversationMemory.conversation_id == conversation_id,
                 ConversationMemory.agent_id == agent_id,
             )
@@ -120,8 +130,10 @@ class MemoryManager:
 
     def clear_all_memory(self, db: Session, conversation_id: int):
         """清除会话中所有 Agent 的记忆"""
+        tenant_id = get_current_tenant_id()
         memories = db.exec(
             select(ConversationMemory).where(
+                ConversationMemory.tenant_id == tenant_id,
                 ConversationMemory.conversation_id == conversation_id,
             )
         ).all()

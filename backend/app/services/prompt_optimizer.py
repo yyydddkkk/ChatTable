@@ -3,6 +3,7 @@ from sqlmodel import Session, select
 from app.core.config import get_logger
 from app.core.database import engine
 from app.core.security import security_manager
+from app.core.tenant import get_current_tenant_id
 from app.models.app_settings import AppSettings
 from app.models.provider import Provider
 
@@ -22,11 +23,19 @@ OPTIMIZE_SYSTEM_PROMPT = """你是一个专业的 AI Agent 系统提示词优化
 
 async def optimize_prompt(prompt: str) -> str:
     with Session(engine) as db:
-        app_settings = db.get(AppSettings, 1)
+        tenant_id = get_current_tenant_id()
+        app_settings = db.exec(
+            select(AppSettings).where(AppSettings.tenant_id == tenant_id)
+        ).first()
         if not app_settings or not app_settings.optimizer_provider_id:
             raise ValueError("请先在设置中配置 AI 优化的服务商")
 
-        provider = db.get(Provider, app_settings.optimizer_provider_id)
+        provider = db.exec(
+            select(Provider).where(
+                Provider.id == app_settings.optimizer_provider_id,
+                Provider.tenant_id == tenant_id,
+            )
+        ).first()
         if not provider:
             raise ValueError("优化服务商不存在，请检查设置")
 
