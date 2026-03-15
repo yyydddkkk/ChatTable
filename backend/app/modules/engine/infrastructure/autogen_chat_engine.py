@@ -43,6 +43,8 @@ class AutogenChatEngine(ChatEnginePort):
 
     def __init__(self):
         self._lock_by_conversation: dict[int, asyncio.Lock] = {}
+        self._state_by_conversation: dict[int, dict] = {}
+        self._signature_by_conversation: dict[int, tuple[int, ...]] = {}
 
     async def clear_conversation(
         self,
@@ -148,19 +150,21 @@ class AutogenChatEngine(ChatEnginePort):
 
         replying_agents: list[Agent] = []
         has_mentions = len(mentioned_ids) > 0 and is_group
-        for agent in agents:
-            is_mentioned = agent.id in mentioned_ids
-            if has_mentions and not is_mentioned:
-                continue
-
-            decision = await decision_engine.should_reply(
-                agent=agent,
-                message=cleaned_content,
-                is_mentioned=is_mentioned,
-                is_private=not is_group,
-            )
-            if decision.should_reply:
-                replying_agents.append(agent)
+        if has_mentions:
+            # Mentioned agents must all reply; do not apply probabilistic skip.
+            for agent in agents:
+                if agent.id in mentioned_ids:
+                    replying_agents.append(agent)
+        else:
+            for agent in agents:
+                decision = await decision_engine.should_reply(
+                    agent=agent,
+                    message=cleaned_content,
+                    is_mentioned=False,
+                    is_private=not is_group,
+                )
+                if decision.should_reply:
+                    replying_agents.append(agent)
 
         if not replying_agents:
             return
@@ -173,15 +177,42 @@ class AutogenChatEngine(ChatEnginePort):
 
         lock = self._lock_by_conversation.setdefault(conv_id, asyncio.Lock())
         async with lock:
-            await self._run_team(
-                conversation_id=conversation_id,
-                db=db,
-                ws_manager=ws_manager,
-                agents=replying_agents,
-                content=cleaned_content,
-                is_group=is_group,
-                length_level=current_length,
-            )
+            if has_mentions:
+                # Mentioned agents reply independently to avoid cross-agent hijacking.
+                mentioned_rank = {
+                    agent_id: idx for idx, agent_id in enumerate(mentioned_ids)
+                }
+                recent_user_context = self._build_recent_user_context(
+                    db=db,
+                    conversation_id=conv_id,
+                    tenant_id=tenant_id,
+                )
+                replying_agents.sort(
+                    key=lambda a: mentioned_rank.get(a.id, len(mentioned_rank))
+                )
+                for agent in replying_agents:
+                    await self._run_team(
+                        conversation_id=conversation_id,
+                        db=db,
+                        ws_manager=ws_manager,
+                        agents=[agent],
+                        content=self._build_direct_mention_task(
+                            cleaned_content, agent.name, recent_user_context
+                        ),
+                        is_group=False,
+                        length_level=current_length,
+                        use_checkpoint=False,
+                    )
+            else:
+                await self._run_team(
+                    conversation_id=conversation_id,
+                    db=db,
+                    ws_manager=ws_manager,
+                    agents=replying_agents,
+                    content=cleaned_content,
+                    is_group=is_group,
+                    length_level=current_length,
+                )
 
     async def _run_team(
         self,
@@ -192,8 +223,10 @@ class AutogenChatEngine(ChatEnginePort):
         content: str,
         is_group: bool,
         length_level: int,
+        use_checkpoint: bool = True,
     ) -> None:
         conv_id = int(conversation_id)
+        tenant_id = get_current_tenant_id()
         source_to_agent_id: dict[str, int] = {}
         model_clients: list[OpenAIChatCompletionClient] = []
         partial_by_agent: dict[int, str] = {}
@@ -226,9 +259,10 @@ class AutogenChatEngine(ChatEnginePort):
                 max_turns=max(1, max_turns),
             )
 
-            previous_signature, previous_state = self._load_checkpoint(db, conv_id)
-            if previous_state and previous_signature == signature:
-                await team.load_state(previous_state)
+            if use_checkpoint:
+                previous_signature, previous_state = self._load_checkpoint(db, conv_id)
+                if previous_state and previous_signature == signature:
+                    await team.load_state(previous_state)
 
             stream = team.run_stream(
                 task=TextMessage(content=content, source="user"),
@@ -261,14 +295,15 @@ class AutogenChatEngine(ChatEnginePort):
                     if text and agent_id not in partial_by_agent:
                         partial_by_agent[agent_id] = text
 
-            saved_state = await team.save_state()
-            self._save_checkpoint(
-                db=db,
-                conversation_id=conv_id,
-                signature=signature,
-                state=saved_state,
-            )
-            self._mark_runtime_active(conv_id)
+            if use_checkpoint:
+                saved_state = await team.save_state()
+                self._save_checkpoint(
+                    db=db,
+                    conversation_id=conv_id,
+                    signature=signature,
+                    state=saved_state,
+                )
+                self._mark_runtime_active(conv_id)
 
             for agent in agents:
                 full_response = partial_by_agent.get(agent.id, "").strip()
@@ -327,6 +362,45 @@ class AutogenChatEngine(ChatEnginePort):
                     await client.close()
                 except Exception:
                     pass
+
+    @staticmethod
+    def _build_direct_mention_task(
+        content: str, agent_name: str, recent_user_context: str
+    ) -> str:
+        context_block = (
+            f"最近用户消息（按时间从旧到新）:\n{recent_user_context}\n\n"
+            if recent_user_context
+            else ""
+        )
+        return (
+            f"{context_block}"
+            f"{content}\n\n"
+            f"附加规则（必须遵守）:\n"
+            f"1) 你只能以“{agent_name}”身份回答。\n"
+            f"2) 不要替其他角色发言，不要点评其他角色的身份。\n"
+            f"3) 优先依据“最近用户消息”中的事实回答用户问题。\n"
+            f"4) 不要输出思考过程、推理步骤或内部分析。\n"
+            f"5) 仅输出你的最终回答内容。"
+        )
+
+    @staticmethod
+    def _build_recent_user_context(
+        db: Session, conversation_id: int, tenant_id: str, limit: int = 8
+    ) -> str:
+        rows = db.exec(
+            select(Message)
+            .where(
+                Message.conversation_id == conversation_id,
+                Message.tenant_id == tenant_id,
+                Message.sender_type == "user",
+            )
+            .order_by(Message.created_at.desc())
+            .limit(limit)
+        ).all()
+        if not rows:
+            return ""
+        lines = [f"- {row.content}" for row in reversed(rows)]
+        return "\n".join(lines)
 
     def _build_model_client(self, db: Session, agent: Agent) -> OpenAIChatCompletionClient:
         if not agent.provider_id:

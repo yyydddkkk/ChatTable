@@ -82,6 +82,12 @@ export default function AuthPage() {
           >
             <div className="absolute -top-10 -right-16 w-56 h-56 rounded-full bg-[--color-primary]/15 blur-2xl" />
             <div className="absolute -bottom-12 -left-10 w-52 h-52 rounded-full bg-[--color-secondary]/15 blur-2xl" />
+            <div className="absolute right-6 top-8 opacity-25 pointer-events-none hidden md:block">
+              <PixelRobot size={8} />
+            </div>
+            <div className="absolute left-6 bottom-8 opacity-15 pointer-events-none hidden lg:block">
+              <PixelRobot size={6} mirrored />
+            </div>
 
             <div className="relative z-10">
               <div
@@ -204,6 +210,54 @@ export default function AuthPage() {
           </section>
         </div>
       </div>
+    </div>
+  );
+}
+
+const ROBOT_MATRIX = [
+  '001111100',
+  '011111110',
+  '111001111',
+  '110000111',
+  '111001111',
+  '011111110',
+  '001111100',
+  '001010100',
+  '011000110',
+  '110000011',
+  '110000011',
+  '010000010',
+];
+
+function PixelRobot({ mirrored = false, size = 8 }: { mirrored?: boolean; size?: number }) {
+  return (
+    <div
+      className="grid"
+      style={{
+        gridTemplateColumns: `repeat(${ROBOT_MATRIX[0].length}, ${size}px)`,
+        gap: '1px',
+        transform: mirrored ? 'scaleX(-1)' : 'none',
+      }}
+      aria-hidden="true"
+    >
+      {ROBOT_MATRIX.flatMap((row, rowIndex) =>
+        row.split('').map((cell, colIndex) => (
+          <span
+            key={`${rowIndex}-${colIndex}`}
+            style={{
+              width: `${size}px`,
+              height: `${size}px`,
+              borderRadius: '1px',
+              background:
+                cell === '1'
+                  ? 'linear-gradient(135deg, rgba(234,120,80,0.75) 0%, rgba(232,104,72,0.75) 100%)'
+                  : 'rgba(255,255,255,0)',
+              boxShadow:
+                cell === '1' ? 'inset 0 1px 0 rgba(255,255,255,0.35)' : 'none',
+            }}
+          />
+        )),
+      )}
     </div>
   );
 }
