@@ -1,7 +1,11 @@
-from dataclasses import dataclass
+﻿from dataclasses import dataclass
 
 import pytest
 
+from app.modules.dispatcher.application.dispatcher_service import (
+    DispatcherService,
+    MessageDispatchContext,
+)
 from app.modules.dispatcher.domain.schemas import (
     DispatchPlan,
     ExecutionStage,
@@ -9,10 +13,6 @@ from app.modules.dispatcher.domain.schemas import (
     SelectedAgent,
 )
 from app.modules.dispatcher.infrastructure.planner_client import PlannerOutcome
-from app.modules.dispatcher.application.dispatcher_service import (
-    DispatcherService,
-    MessageDispatchContext,
-)
 
 
 class FakeEngine:
@@ -41,6 +41,7 @@ class FakeEngine:
 class FakePlanner:
     def __init__(self, outcome: PlannerOutcome) -> None:
         self.outcome = outcome
+        self.last_call: dict | None = None
 
     async def plan(
         self,
@@ -50,7 +51,19 @@ class FakePlanner:
         active_agent_ids,
         mentioned_ids,
         is_group,
+        planner_api_key=None,
+        planner_api_base=None,
     ) -> PlannerOutcome:
+        self.last_call = {
+            "conversation_id": conversation_id,
+            "trigger_message_id": trigger_message_id,
+            "message_content": message_content,
+            "active_agent_ids": active_agent_ids,
+            "mentioned_ids": mentioned_ids,
+            "is_group": is_group,
+            "planner_api_key": planner_api_key,
+            "planner_api_base": planner_api_base,
+        }
         return self.outcome
 
 
@@ -88,17 +101,25 @@ async def test_dispatcher_forwards_plan_to_engine(monkeypatch) -> None:
         retry_count=0,
     )
 
+    fake_planner = FakePlanner(outcome)
     service = DispatcherService(
         engine=FakeEngine(),
-        planner_client=FakePlanner(outcome),
+        planner_client=fake_planner,
         context_loader=lambda **_: MessageDispatchContext(
             conversation_id=1,
             trigger_message_id=123,
             cleaned_content="hello",
             active_agent_ids=[9],
+            active_provider_ids=[99],
             mentioned_ids=[9],
             is_group=True,
         ),
+    )
+
+    monkeypatch.setattr(
+        service,
+        "_resolve_planner_credentials",
+        lambda db, context: ("provider-key", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
     )
 
     ws = FakeWsManager()
@@ -112,6 +133,8 @@ async def test_dispatcher_forwards_plan_to_engine(monkeypatch) -> None:
 
     assert len(service._engine.calls) == 1
     assert service._engine.calls[0]["plan"].plan_id == "p-1"
+    assert fake_planner.last_call is not None
+    assert fake_planner.last_call["planner_api_key"] == "provider-key"
 
 
 @pytest.mark.anyio
@@ -124,7 +147,10 @@ async def test_dispatcher_emits_degraded_event_in_debug(monkeypatch) -> None:
         retry_count=1,
     )
 
-    monkeypatch.setattr("app.modules.dispatcher.application.dispatcher_service.settings.dispatcher_debug_feedback", True)
+    monkeypatch.setattr(
+        "app.modules.dispatcher.application.dispatcher_service.settings.dispatcher_debug_feedback",
+        True,
+    )
 
     service = DispatcherService(
         engine=FakeEngine(),
@@ -134,6 +160,7 @@ async def test_dispatcher_emits_degraded_event_in_debug(monkeypatch) -> None:
             trigger_message_id=123,
             cleaned_content="hello",
             active_agent_ids=[9],
+            active_provider_ids=[],
             mentioned_ids=[9],
             is_group=True,
         ),

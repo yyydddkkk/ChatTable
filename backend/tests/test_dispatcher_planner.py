@@ -137,3 +137,42 @@ async def test_planner_retry_failure_falls_back_and_logs(caplog) -> None:
     assert [x.agent_id for x in outcome.plan.selected_agents] == [9]
     assert "planner_retry_failed" in caplog.text
     assert "fallback_plan_executed" in caplog.text
+
+@pytest.mark.anyio
+async def test_planner_uses_runtime_provider_key_override() -> None:
+    fake = FakeCompletion(
+        [
+            """
+            {
+              "plan_id": "planner-3",
+              "selected_agents": [{"agent_id": 5, "priority": 90, "reason_tag": "mention"}],
+              "execution_graph": [{"stage": 1, "mode": "serial", "agents": [5]}],
+              "round_control": {"max_rounds": 1, "trigger_next_round": false, "next_round_candidates": []}
+            }
+            """
+        ]
+    )
+
+    client = PlannerClient(
+        completion_fn=fake,
+        hard_cap=5,
+        retry_count=1,
+        planner_model="qwen3.5-plus",
+        planner_api_key="",
+        planner_api_base=None,
+        timeout_ms=2500,
+    )
+
+    outcome = await client.plan(
+        conversation_id=11,
+        trigger_message_id=22,
+        message_content="hello",
+        active_agent_ids=[5],
+        mentioned_ids=[5],
+        is_group=True,
+        planner_api_key="runtime-key",
+        planner_api_base="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    )
+
+    assert outcome.used_fallback is False
+    assert [x.agent_id for x in outcome.plan.selected_agents] == [5]

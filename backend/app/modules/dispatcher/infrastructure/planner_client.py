@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from dataclasses import dataclass
@@ -17,10 +17,7 @@ from app.services.llm_service import normalize_api_base
 
 logger = get_logger(__name__)
 
-PlannerCompletionFn = Callable[
-    ...,
-    Awaitable[str],
-]
+PlannerCompletionFn = Callable[..., Awaitable[str]]
 
 
 @dataclass
@@ -70,6 +67,8 @@ class PlannerClient:
         active_agent_ids: list[int],
         mentioned_ids: list[int],
         is_group: bool,
+        planner_api_key: str | None = None,
+        planner_api_base: str | None = None,
     ) -> PlannerOutcome:
         if not active_agent_ids:
             plan = build_fallback_plan(
@@ -90,7 +89,14 @@ class PlannerClient:
             active_agents_count=len(active_agent_ids),
         )
 
-        if not self._planner_api_key:
+        effective_api_key = (
+            planner_api_key if planner_api_key is not None else self._planner_api_key
+        )
+        effective_api_base = (
+            planner_api_base if planner_api_base is not None else self._planner_api_base
+        )
+
+        if not effective_api_key:
             logger.error(
                 "planner_primary_failed event=planner_primary_failed failure_type=missing_api_key conversation_id=%s message_id=%s",
                 conversation_id,
@@ -129,8 +135,8 @@ class PlannerClient:
             try:
                 raw_output = await self._completion_fn(
                     model=self._planner_model,
-                    api_key=self._planner_api_key,
-                    api_base=self._planner_api_base or None,
+                    api_key=effective_api_key,
+                    api_base=effective_api_base or None,
                     messages=prompt_messages,
                     timeout_ms=self._timeout_ms,
                 )
