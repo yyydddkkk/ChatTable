@@ -78,15 +78,33 @@ class DispatcherService:
                 conversation_id,
             )
 
+        selected_agent_ids = [item.agent_id for item in outcome.plan.selected_agents]
+        latency_ms = int((perf_counter() - started) * 1000)
+
+        if settings.dispatcher_debug_feedback:
+            await ws_manager.broadcast(
+                {
+                    "type": "dispatcher_summary",
+                    "conversation_id": context.conversation_id,
+                    "message_id": context.trigger_message_id,
+                    "selected_agents": selected_agent_ids,
+                    "fallback": outcome.used_fallback,
+                    "failure_type": outcome.failure_type,
+                    "retry_count": outcome.retry_count,
+                    "latency_ms": latency_ms,
+                },
+                conversation_id,
+            )
+
         logger.info(
             "dispatch_summary event=dispatch_summary conversation_id=%s message_id=%s selected_agents=%s fallback=%s failure_type=%s retry_count=%s latency_ms=%d",
             context.conversation_id,
             context.trigger_message_id,
-            [item.agent_id for item in outcome.plan.selected_agents],
+            selected_agent_ids,
             outcome.used_fallback,
             outcome.failure_type,
             outcome.retry_count,
-            int((perf_counter() - started) * 1000),
+            latency_ms,
         )
 
         await self._engine.process_user_message_with_plan(
@@ -148,3 +166,4 @@ class DispatcherService:
             mentioned_ids=mentioned_ids,
             is_group=conversation.type == "group",
         )
+
