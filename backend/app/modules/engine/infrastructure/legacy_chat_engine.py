@@ -4,6 +4,7 @@ from sqlmodel import Session
 
 from app.core.chat_handler import ChatHandler
 from app.core.websocket import ConnectionManager
+from app.modules.dispatcher.domain.schemas import DispatchPlan
 from app.modules.engine.application.ports import ChatEnginePort
 
 
@@ -30,6 +31,23 @@ class LegacyChatEngine(ChatEnginePort):
         conversation_lengths: Dict[int, int],
     ) -> None:
         await self._chat_handler.handle_user_message(
+            conversation_id=conversation_id,
+            content=content,
+            db=db,
+            ws_manager=ws_manager,
+            conversation_lengths=conversation_lengths,
+        )
+
+    async def process_user_message_with_plan(
+        self,
+        conversation_id: str,
+        content: str,
+        plan: DispatchPlan,
+        db: Session,
+        ws_manager: ConnectionManager,
+        conversation_lengths: Dict[int, int],
+    ) -> None:
+        await self.process_user_message(
             conversation_id=conversation_id,
             content=content,
             db=db,

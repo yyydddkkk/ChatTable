@@ -1,4 +1,4 @@
-import asyncio
+﻿import asyncio
 import json
 from datetime import datetime
 from typing import Dict
@@ -25,6 +25,7 @@ from app.models.autogen_checkpoint import AutogenCheckpoint
 from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.provider import Provider
+from app.modules.dispatcher.domain.schemas import DispatchPlan, ExecutionStage
 from app.modules.engine.application.ports import ChatEnginePort
 from app.services.agent_service import AgentService
 from app.services.llm_service import normalize_api_base
@@ -209,6 +210,135 @@ class AutogenChatEngine(ChatEnginePort):
                     db=db,
                     ws_manager=ws_manager,
                     agents=replying_agents,
+                    content=cleaned_content,
+                    is_group=is_group,
+                    length_level=current_length,
+                )
+
+
+    async def process_user_message_with_plan(
+        self,
+        conversation_id: str,
+        content: str,
+        plan: DispatchPlan,
+        db: Session,
+        ws_manager: ConnectionManager,
+        conversation_lengths: Dict[int, int],
+    ) -> None:
+        conv_id = int(conversation_id)
+        tenant_id = get_current_tenant_id()
+
+        user_msg = Message(
+            conversation_id=conv_id,
+            tenant_id=tenant_id,
+            sender_type="user",
+            content=content,
+        )
+        db.add(user_msg)
+        db.commit()
+        db.refresh(user_msg)
+
+        await ws_manager.broadcast(
+            {
+                "type": "user_message",
+                "message": {
+                    "id": user_msg.id,
+                    "content": content,
+                    "sender_type": "user",
+                    "created_at": user_msg.created_at.isoformat(),
+                },
+            },
+            conversation_id,
+        )
+
+        conversation = db.exec(
+            select(Conversation).where(
+                Conversation.id == conv_id,
+                Conversation.tenant_id == tenant_id,
+            )
+        ).first()
+        if not conversation:
+            logger.warning("Conversation not found: %s", conversation_id)
+            return
+
+        is_group = conversation.type == "group"
+        agents = get_conversation_agents(db, conv_id)
+        if not agents:
+            logger.debug("No active agents in conversation %s", conversation_id)
+            return
+
+        for agent in agents:
+            memory_manager.add_message(db, conv_id, agent.id, user_msg)
+
+        cleaned_content, _ = parse_mentions(content, agents)
+
+        current_length = conversation_lengths.get(conv_id, 3)
+        trigger = length_controller.detect_trigger(cleaned_content)
+        if trigger:
+            current_length = max(1, min(5, current_length + trigger))
+            conversation_lengths[conv_id] = current_length
+
+        if topic_detector.detect_topic_switch(cleaned_content):
+            await ws_manager.broadcast({"type": "topic_switched"}, conversation_id)
+
+        agent_by_id = {agent.id: agent for agent in agents}
+        selected_ids = [item.agent_id for item in plan.selected_agents]
+        selected_agents = [
+            agent_by_id[agent_id] for agent_id in selected_ids if agent_id in agent_by_id
+        ]
+        if not selected_agents:
+            logger.info(
+                "Dispatcher plan selected no active agents for conversation %s", conversation_id
+            )
+            return
+
+        for agent in selected_agents:
+            await ws_manager.broadcast(
+                {"type": "agent_thinking", "agent_id": agent.id, "agent_name": agent.name},
+                conversation_id,
+            )
+
+        stages = sorted(plan.execution_graph, key=lambda stage: stage.stage)
+        if not stages:
+            stages = [
+                ExecutionStage(
+                    stage=1,
+                    mode="parallel",
+                    agents=[agent.id for agent in selected_agents],
+                )
+            ]
+
+        lock = self._lock_by_conversation.setdefault(conv_id, asyncio.Lock())
+        async with lock:
+            for stage in stages:
+                stage_agents = [
+                    agent_by_id[agent_id]
+                    for agent_id in stage.agents
+                    if agent_id in agent_by_id
+                ]
+                if not stage_agents:
+                    continue
+
+                mode = (stage.mode or "parallel").lower()
+                if mode == "serial":
+                    for agent in stage_agents:
+                        await self._run_team(
+                            conversation_id=conversation_id,
+                            db=db,
+                            ws_manager=ws_manager,
+                            agents=[agent],
+                            content=cleaned_content,
+                            is_group=False,
+                            length_level=current_length,
+                            use_checkpoint=False,
+                        )
+                    continue
+
+                await self._run_team(
+                    conversation_id=conversation_id,
+                    db=db,
+                    ws_manager=ws_manager,
+                    agents=stage_agents,
                     content=cleaned_content,
                     is_group=is_group,
                     length_level=current_length,
@@ -506,3 +636,5 @@ class AutogenChatEngine(ChatEnginePort):
             redis_client.delete(key)
         except Exception:
             logger.debug("Failed to clear redis runtime key for conversation=%s", conversation_id)
+
+

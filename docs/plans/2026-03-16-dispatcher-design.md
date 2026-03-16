@@ -1,4 +1,4 @@
-﻿# 2026-03-16 Dispatcher 设计（多 Agent 群聊调度中枢）
+# 2026-03-16 Dispatcher 设计（多 Agent 群聊调度中枢）
 
 ## 1. 目标与范围
 
@@ -245,3 +245,18 @@ WebSocket user_message
 - 群聊触发上限严格受 `hard_cap=5` 约束。
 - Planner 故障时可降级且有可检索日志。
 - 开发环境有降级提示，生产环境默认无感。
+
+## 13. 实现状态（2026-03-16）
+
+已完成首版实现（代码已接线，测试通过）：
+
+- 新增 `modules/dispatcher`（domain/application/infrastructure）。
+- `ChatApplicationService` 在 `dispatcher_enabled=true` 时优先走 Dispatcher。
+- `PlannerClient` 支持全 LLM 调度、一次重试、失败降级与结构化日志事件。
+- `AutogenChatEngine` 新增 `process_user_message_with_plan()`，按 `execution_graph` 执行 stage。
+- 开发态支持 `dispatcher_degraded` 前端事件提示。
+
+当前限制：
+
+- 混合模式中的异步队列 worker 尚未接入，本版为同步路径优先实现。
+- `ContextLoader` 目前使用 DB + parser，Redis 热上下文与队列调度将在下一迭代补齐。

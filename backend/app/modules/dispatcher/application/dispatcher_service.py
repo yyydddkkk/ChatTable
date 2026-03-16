@@ -1,0 +1,135 @@
+from __future__ import annotations
+
+import asyncio
+from dataclasses import dataclass
+from typing import Any, Callable
+
+from sqlmodel import Session, select
+
+from app.core.config import get_logger, settings
+from app.core.tenant import get_current_tenant_id
+from app.core.websocket import ConnectionManager
+from app.models.conversation import Conversation
+from app.models.message import Message
+from app.modules.dispatcher.infrastructure.planner_client import PlannerClient
+from app.modules.engine.application.ports import ChatEnginePort
+from app.services.message_parser import get_conversation_agents, parse_mentions
+
+logger = get_logger(__name__)
+
+
+@dataclass
+class MessageDispatchContext:
+    conversation_id: int
+    trigger_message_id: int
+    cleaned_content: str
+    active_agent_ids: list[int]
+    mentioned_ids: list[int]
+    is_group: bool
+
+
+class DispatcherService:
+    def __init__(
+        self,
+        engine: ChatEnginePort,
+        planner_client: PlannerClient | None = None,
+        context_loader: Callable[..., MessageDispatchContext | Any] | None = None,
+    ) -> None:
+        self._engine = engine
+        self._planner_client = planner_client or PlannerClient()
+        self._context_loader = context_loader or self._load_context
+
+    async def handle_user_message(
+        self,
+        conversation_id: str,
+        content: str,
+        db: Session,
+        ws_manager: ConnectionManager,
+        conversation_lengths: dict[int, int],
+    ) -> None:
+        context_result = self._context_loader(
+            conversation_id=conversation_id,
+            content=content,
+            db=db,
+        )
+        if asyncio.iscoroutine(context_result):
+            context = await context_result
+        else:
+            context = context_result
+
+        outcome = await self._planner_client.plan(
+            conversation_id=context.conversation_id,
+            trigger_message_id=context.trigger_message_id,
+            message_content=context.cleaned_content,
+            active_agent_ids=context.active_agent_ids,
+            mentioned_ids=context.mentioned_ids,
+            is_group=context.is_group,
+        )
+
+        if outcome.used_fallback and settings.dispatcher_debug_feedback:
+            await ws_manager.broadcast(
+                {
+                    "type": "dispatcher_degraded",
+                    "failure_type": outcome.failure_type,
+                    "retry_count": outcome.retry_count,
+                },
+                conversation_id,
+            )
+
+        await self._engine.process_user_message_with_plan(
+            conversation_id=conversation_id,
+            content=context.cleaned_content,
+            plan=outcome.plan,
+            db=db,
+            ws_manager=ws_manager,
+            conversation_lengths=conversation_lengths,
+        )
+
+    @staticmethod
+    def _load_context(
+        conversation_id: str,
+        content: str,
+        db: Session,
+    ) -> MessageDispatchContext:
+        conv_id = int(conversation_id)
+        tenant_id = get_current_tenant_id()
+
+        conversation = db.exec(
+            select(Conversation).where(
+                Conversation.id == conv_id,
+                Conversation.tenant_id == tenant_id,
+            )
+        ).first()
+        if not conversation:
+            logger.warning("Conversation not found for dispatcher: %s", conversation_id)
+            return MessageDispatchContext(
+                conversation_id=conv_id,
+                trigger_message_id=-1,
+                cleaned_content=content,
+                active_agent_ids=[],
+                mentioned_ids=[],
+                is_group=False,
+            )
+
+        agents = get_conversation_agents(db, conv_id)
+        cleaned_content, mentioned_ids = parse_mentions(content, agents)
+
+        latest_message = db.exec(
+            select(Message)
+            .where(
+                Message.conversation_id == conv_id,
+                Message.tenant_id == tenant_id,
+            )
+            .order_by(Message.id.desc())  # type: ignore[union-attr]
+            .limit(1)
+        ).first()
+        trigger_message_id = (latest_message.id + 1) if latest_message and latest_message.id else -1
+
+        return MessageDispatchContext(
+            conversation_id=conv_id,
+            trigger_message_id=trigger_message_id,
+            cleaned_content=cleaned_content,
+            active_agent_ids=[agent.id for agent in agents],
+            mentioned_ids=mentioned_ids,
+            is_group=conversation.type == "group",
+        )

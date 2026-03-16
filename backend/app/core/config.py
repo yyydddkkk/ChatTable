@@ -1,4 +1,5 @@
 import logging
+
 from pydantic_settings import BaseSettings
 
 
@@ -12,6 +13,17 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./chattable.db"
     redis_url: str = "redis://localhost:6379/0"
     chat_engine: str = "legacy"
+
+    dispatcher_enabled: bool = True
+    dispatcher_mode: str = "mixed"
+    dispatcher_hard_cap: int = 5
+    dispatcher_max_rounds: int = 2
+    dispatcher_planner_model: str = "qwen3.5-plus"
+    dispatcher_planner_api_key: str = ""
+    dispatcher_planner_api_base: str = ""
+    dispatcher_planner_timeout_ms: int = 2500
+    dispatcher_planner_retry: int = 1
+    dispatcher_debug_feedback: bool = True
 
     class Config:
         env_file = ".env"

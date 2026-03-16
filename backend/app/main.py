@@ -7,6 +7,7 @@ from sqlmodel import Session
 
 from app.api.middleware.request_context import request_context_middleware
 from app.api.v1.router import api_router
+from app.core.chat_handler import chat_handler
 from app.core.config import get_logger, settings, setup_logging
 from app.core.database import engine, init_db
 from app.core.redis_client import redis_health
@@ -17,14 +18,21 @@ from app.core.request_context import (
     set_request_context,
 )
 from app.core.websocket import manager
-from app.core.chat_handler import chat_handler
+from app.modules.dispatcher.application.dispatcher_service import DispatcherService
 from app.modules.engine.infrastructure.factory import create_chat_engine
 from app.modules.im.application.chat_application_service import ChatApplicationService
 from app.services.auth_service import auth_service
 
 logger = get_logger(__name__)
+chat_engine = create_chat_engine(chat_handler)
+dispatcher_service = (
+    DispatcherService(engine=chat_engine)
+    if settings.dispatcher_enabled and settings.chat_engine.strip().lower() == "autogen"
+    else None
+)
 chat_application_service = ChatApplicationService(
-    engine=create_chat_engine(chat_handler)
+    engine=chat_engine,
+    dispatcher=dispatcher_service,
 )
 
 

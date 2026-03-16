@@ -2,9 +2,10 @@ from typing import Dict
 
 from sqlmodel import Session
 
-from app.core.config import get_logger
+from app.core.config import get_logger, settings
 from app.core.request_context import get_request_context
 from app.core.websocket import ConnectionManager
+from app.modules.dispatcher.application.dispatcher_service import DispatcherService
 from app.modules.engine.application.ports import ChatEnginePort
 
 logger = get_logger(__name__)
@@ -13,8 +14,13 @@ logger = get_logger(__name__)
 class ChatApplicationService:
     """IM application-layer orchestration for chat events."""
 
-    def __init__(self, engine: ChatEnginePort):
+    def __init__(
+        self,
+        engine: ChatEnginePort,
+        dispatcher: DispatcherService | None = None,
+    ):
         self._engine = engine
+        self._dispatcher = dispatcher
 
     async def handle_clear(
         self,
@@ -50,6 +56,17 @@ class ChatApplicationService:
             ctx.user_id,
             conversation_id,
         )
+
+        if settings.dispatcher_enabled and self._dispatcher is not None:
+            await self._dispatcher.handle_user_message(
+                conversation_id=conversation_id,
+                content=content,
+                db=db,
+                ws_manager=ws_manager,
+                conversation_lengths=conversation_lengths,
+            )
+            return
+
         await self._engine.process_user_message(
             conversation_id=conversation_id,
             content=content,
