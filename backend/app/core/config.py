@@ -25,6 +25,8 @@ class Settings(BaseSettings):
     dispatcher_planner_retry: int = 1
     dispatcher_debug_feedback: bool = True
     stream_chunk_batch_chars: int = 24
+    autogen_core_log_level: str = "WARNING"
+    autogen_events_log_level: str = "WARNING"
 
     class Config:
         env_file = ".env"
@@ -40,6 +42,14 @@ def setup_logging():
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
+    autogen_core_level = getattr(
+        logging, settings.autogen_core_log_level.upper(), logging.WARNING
+    )
+    autogen_events_level = getattr(
+        logging, settings.autogen_events_log_level.upper(), logging.WARNING
+    )
+    logging.getLogger("autogen_core").setLevel(autogen_core_level)
+    logging.getLogger("autogen_core.events").setLevel(autogen_events_level)
 
 
 def get_logger(name: str) -> logging.Logger:
