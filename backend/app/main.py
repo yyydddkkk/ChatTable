@@ -1,8 +1,10 @@
 from contextlib import asynccontextmanager
+from time import perf_counter
 from typing import Dict
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlmodel import Session
 
 from app.api.middleware.request_context import request_context_middleware
@@ -18,10 +20,15 @@ from app.core.request_context import (
     set_request_context,
 )
 from app.core.websocket import manager
-from app.modules.dispatcher.application.dispatcher_service import DispatcherService
+from app.modules.dispatcher.application.dispatcher_service import (
+    DispatcherService,
+    resolve_planner_credentials,
+)
+from app.modules.dispatcher.infrastructure.planner_client import PlannerClient
 from app.modules.engine.infrastructure.factory import create_chat_engine
 from app.modules.im.application.chat_application_service import ChatApplicationService
 from app.services.auth_service import auth_service
+from app.services.message_parser import get_conversation_agents
 
 logger = get_logger(__name__)
 chat_engine = create_chat_engine(chat_handler)
@@ -75,6 +82,83 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/health/planner")
+async def health_planner(conversation_id: int | None = None):
+    fallback_provider_ids: list[int] = []
+    with Session(engine) as db:
+        if conversation_id is not None:
+            agents = get_conversation_agents(db, conversation_id)
+            fallback_provider_ids = [
+                int(agent.provider_id)
+                for agent in agents
+                if agent.provider_id is not None
+            ]
+
+        api_key, api_base, source, provider_id = resolve_planner_credentials(
+            db=db,
+            active_provider_ids=fallback_provider_ids,
+        )
+
+    if not api_key:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "error",
+                "reason": "missing_api_key",
+                "model": settings.dispatcher_planner_model,
+                "source": source,
+                "provider_id": provider_id,
+            },
+        )
+
+    started = perf_counter()
+    try:
+        content = await PlannerClient._default_completion(
+            model=settings.dispatcher_planner_model,
+            api_key=api_key,
+            api_base=api_base,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a health probe agent. Reply with OK only.",
+                },
+                {"role": "user", "content": "OK"},
+            ],
+            timeout_ms=settings.dispatcher_planner_timeout_ms,
+        )
+        latency_ms = int((perf_counter() - started) * 1000)
+        return {
+            "status": "ok",
+            "model": settings.dispatcher_planner_model,
+            "source": source,
+            "provider_id": provider_id,
+            "latency_ms": latency_ms,
+            "reply_preview": content[:40],
+        }
+    except Exception as exc:
+        latency_ms = int((perf_counter() - started) * 1000)
+        logger.warning(
+            "planner_probe_failed error_type=%s latency_ms=%s source=%s provider_id=%s",
+            type(exc).__name__,
+            latency_ms,
+            source,
+            provider_id,
+        )
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "error",
+                "reason": "connectivity_failed",
+                "model": settings.dispatcher_planner_model,
+                "source": source,
+                "provider_id": provider_id,
+                "latency_ms": latency_ms,
+                "error_type": type(exc).__name__,
+                "error_message": str(exc)[:200],
+            },
+        )
 
 
 @app.websocket("/ws/{conversation_id}")

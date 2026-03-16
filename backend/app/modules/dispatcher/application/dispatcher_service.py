@@ -11,6 +11,7 @@ from app.core.config import get_logger, settings
 from app.core.security import security_manager
 from app.core.tenant import get_current_tenant_id
 from app.core.websocket import ConnectionManager
+from app.models.agent import Agent
 from app.models.app_settings import AppSettings
 from app.models.conversation import Conversation
 from app.models.message import Message
@@ -31,6 +32,75 @@ class MessageDispatchContext:
     active_provider_ids: list[int]
     mentioned_ids: list[int]
     is_group: bool
+
+
+def resolve_planner_credentials(
+    db: Session,
+    active_provider_ids: list[int] | None = None,
+) -> tuple[str | None, str | None, str, int | None]:
+    if settings.dispatcher_planner_api_key:
+        return (
+            settings.dispatcher_planner_api_key,
+            settings.dispatcher_planner_api_base or None,
+            "env",
+            None,
+        )
+
+    if db is None:
+        return None, None, "missing", None
+
+    tenant_id = get_current_tenant_id()
+    candidates: list[tuple[str, int]] = []
+    seen_ids: set[int] = set()
+
+    app_settings = db.exec(
+        select(AppSettings).where(AppSettings.tenant_id == tenant_id)
+    ).first()
+    if app_settings and app_settings.optimizer_provider_id:
+        provider_id = int(app_settings.optimizer_provider_id)
+        candidates.append(("optimizer_provider", provider_id))
+        seen_ids.add(provider_id)
+
+    for provider_id in active_provider_ids or []:
+        pid = int(provider_id)
+        if pid in seen_ids:
+            continue
+        candidates.append(("conversation_provider", pid))
+        seen_ids.add(pid)
+
+    if not candidates:
+        latest_agent = db.exec(
+            select(Agent)
+            .where(
+                Agent.tenant_id == tenant_id,
+                Agent.provider_id.is_not(None),  # type: ignore[union-attr]
+            )
+            .order_by(Agent.updated_at.desc())  # type: ignore[union-attr]
+            .limit(1)
+        ).first()
+        if latest_agent and latest_agent.provider_id is not None:
+            candidates.append(("tenant_provider", int(latest_agent.provider_id)))
+
+    for source, provider_id in candidates:
+        provider = db.exec(
+            select(Provider).where(
+                Provider.id == provider_id,
+                Provider.tenant_id == tenant_id,
+            )
+        ).first()
+        if not provider:
+            continue
+        try:
+            api_key = security_manager.decrypt(provider.api_key)
+        except Exception:
+            logger.error(
+                "Failed to decrypt planner provider key: provider_id=%s",
+                provider_id,
+            )
+            continue
+        return api_key, (provider.api_base or None), source, provider_id
+
+    return None, None, "missing", None
 
 
 class DispatcherService:
@@ -132,47 +202,11 @@ class DispatcherService:
         db: Session,
         context: MessageDispatchContext,
     ) -> tuple[str | None, str | None]:
-        if settings.dispatcher_planner_api_key:
-            return settings.dispatcher_planner_api_key, (
-                settings.dispatcher_planner_api_base or None
-            )
-
-        if db is None:
-            return None, None
-
-        tenant_id = get_current_tenant_id()
-        preferred_provider_id: int | None = None
-
-        app_settings = db.exec(
-            select(AppSettings).where(AppSettings.tenant_id == tenant_id)
-        ).first()
-        if app_settings and app_settings.optimizer_provider_id:
-            preferred_provider_id = app_settings.optimizer_provider_id
-        elif context.active_provider_ids:
-            preferred_provider_id = context.active_provider_ids[0]
-
-        if not preferred_provider_id:
-            return None, None
-
-        provider = db.exec(
-            select(Provider).where(
-                Provider.id == preferred_provider_id,
-                Provider.tenant_id == tenant_id,
-            )
-        ).first()
-        if not provider:
-            return None, None
-
-        try:
-            api_key = security_manager.decrypt(provider.api_key)
-        except Exception:
-            logger.error(
-                "Failed to decrypt planner provider key: provider_id=%s",
-                preferred_provider_id,
-            )
-            return None, None
-
-        return api_key, (provider.api_base or None)
+        api_key, api_base, _, _ = resolve_planner_credentials(
+            db=db,
+            active_provider_ids=context.active_provider_ids,
+        )
+        return api_key, api_base
 
     @staticmethod
     def _load_context(
