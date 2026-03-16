@@ -11,7 +11,7 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 from sqlmodel import Session, select
 
 from app.core.cache import app_cache
-from app.core.config import get_logger
+from app.core.config import get_logger, settings
 from app.core.decision_engine import decision_engine
 from app.core.length_control import length_controller
 from app.core.memory_manager import memory_manager
@@ -360,10 +360,27 @@ class AutogenChatEngine(ChatEnginePort):
         source_to_agent_id: dict[str, int] = {}
         model_clients: list[OpenAIChatCompletionClient] = []
         partial_by_agent: dict[int, str] = {}
+        pending_by_agent: dict[int, str] = {}
         max_turns = len(agents) * (2 if is_group and len(agents) >= 2 else 1)
         signature = tuple(sorted(a.id for a in agents))
+        batch_size = max(1, settings.stream_chunk_batch_chars)
+        flush_punctuations = ("\n", ".", "!", "?", "。", "！", "？")
 
         try:
+            async def flush_pending_chunk(agent_id: int) -> None:
+                pending = pending_by_agent.get(agent_id, "")
+                if not pending:
+                    return
+                await ws_manager.broadcast(
+                    {
+                        "type": "agent_message_chunk",
+                        "agent_id": agent_id,
+                        "content": pending,
+                    },
+                    conversation_id,
+                )
+                pending_by_agent[agent_id] = ""
+
             participants: list[AssistantAgent] = []
             for agent in agents:
                 client = self._build_model_client(db, agent)
@@ -410,20 +427,21 @@ class AutogenChatEngine(ChatEnginePort):
                     chunk = str(message.content or "")
                     if chunk:
                         partial_by_agent[agent_id] = partial_by_agent.get(agent_id, "") + chunk
-                        await ws_manager.broadcast(
-                            {
-                                "type": "agent_message_chunk",
-                                "agent_id": agent_id,
-                                "content": chunk,
-                            },
-                            conversation_id,
+                        pending_by_agent[agent_id] = pending_by_agent.get(agent_id, "") + chunk
+                        should_flush = len(pending_by_agent[agent_id]) >= batch_size or chunk.endswith(
+                            flush_punctuations
                         )
+                        if should_flush:
+                            await flush_pending_chunk(agent_id)
                     continue
 
                 if isinstance(message, TextMessage):
                     text = str(message.content or "").strip()
                     if text and agent_id not in partial_by_agent:
                         partial_by_agent[agent_id] = text
+
+            for agent in agents:
+                await flush_pending_chunk(agent.id)
 
             if use_checkpoint:
                 saved_state = await team.save_state()

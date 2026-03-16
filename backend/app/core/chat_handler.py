@@ -12,7 +12,7 @@ from app.core.autonomous_coordination import (
     TerminationPolicy,
 )
 from app.core.cache import app_cache
-from app.core.config import get_logger
+from app.core.config import get_logger, settings
 from app.core.decision_engine import decision_engine
 from app.core.length_control import length_controller
 from app.core.memory_manager import memory_manager
@@ -411,6 +411,24 @@ class ChatHandler:
 
             llm_messages = length_controller.inject_length_prompt(llm_messages, length_level)
 
+            pending_chunk = ""
+            batch_size = max(1, settings.stream_chunk_batch_chars)
+            flush_punctuations = ("\n", ".", "!", "?", "。", "！", "？")
+
+            async def flush_pending_chunk() -> None:
+                nonlocal pending_chunk
+                if not pending_chunk:
+                    return
+                await ws_manager.broadcast(
+                    {
+                        "type": "agent_message_chunk",
+                        "agent_id": agent.id,
+                        "content": pending_chunk,
+                    },
+                    conversation_id,
+                )
+                pending_chunk = ""
+
             async for chunk in llm_service.generate_stream(
                 model=agent.model,
                 api_key=api_key,
@@ -418,14 +436,14 @@ class ChatHandler:
                 api_base=api_base,
             ):
                 full_response += chunk
-                await ws_manager.broadcast(
-                    {
-                        "type": "agent_message_chunk",
-                        "agent_id": agent.id,
-                        "content": chunk,
-                    },
-                    conversation_id,
+                pending_chunk += chunk
+                should_flush = len(pending_chunk) >= batch_size or chunk.endswith(
+                    flush_punctuations
                 )
+                if should_flush:
+                    await flush_pending_chunk()
+
+            await flush_pending_chunk()
 
             stripped = full_response.strip()
             trivial_replies = {"(nod)", "pass", "..."}

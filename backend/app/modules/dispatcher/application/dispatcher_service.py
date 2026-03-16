@@ -1,7 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from time import perf_counter
 from typing import Any, Callable
 
 from sqlmodel import Session, select
@@ -47,6 +48,7 @@ class DispatcherService:
         ws_manager: ConnectionManager,
         conversation_lengths: dict[int, int],
     ) -> None:
+        started = perf_counter()
         context_result = self._context_loader(
             conversation_id=conversation_id,
             content=content,
@@ -75,6 +77,17 @@ class DispatcherService:
                 },
                 conversation_id,
             )
+
+        logger.info(
+            "dispatch_summary event=dispatch_summary conversation_id=%s message_id=%s selected_agents=%s fallback=%s failure_type=%s retry_count=%s latency_ms=%d",
+            context.conversation_id,
+            context.trigger_message_id,
+            [item.agent_id for item in outcome.plan.selected_agents],
+            outcome.used_fallback,
+            outcome.failure_type,
+            outcome.retry_count,
+            int((perf_counter() - started) * 1000),
+        )
 
         await self._engine.process_user_message_with_plan(
             conversation_id=conversation_id,
@@ -123,7 +136,9 @@ class DispatcherService:
             .order_by(Message.id.desc())  # type: ignore[union-attr]
             .limit(1)
         ).first()
-        trigger_message_id = (latest_message.id + 1) if latest_message and latest_message.id else -1
+        trigger_message_id = (
+            (latest_message.id + 1) if latest_message and latest_message.id else -1
+        )
 
         return MessageDispatchContext(
             conversation_id=conv_id,

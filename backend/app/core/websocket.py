@@ -1,8 +1,12 @@
-from typing import Dict, List
-from fastapi import WebSocket
 import asyncio
-import json
 from datetime import datetime
+from typing import Dict, List
+
+from fastapi import WebSocket
+
+from app.core.config import get_logger
+
+logger = get_logger(__name__)
 
 
 class ConnectionManager:
@@ -21,7 +25,7 @@ class ConnectionManager:
         task = asyncio.create_task(self._heartbeat(websocket))
         self.heartbeat_tasks[websocket] = task
 
-        print(f"Client connected to conversation {conversation_id}")
+        logger.info("WebSocket client connected: conversation_id=%s", conversation_id)
 
     def disconnect(self, websocket: WebSocket, conversation_id: str):
         if conversation_id in self.active_connections:
@@ -34,7 +38,7 @@ class ConnectionManager:
             self.heartbeat_tasks[websocket].cancel()
             del self.heartbeat_tasks[websocket]
 
-        print(f"Client disconnected from conversation {conversation_id}")
+        logger.info("WebSocket client disconnected: conversation_id=%s", conversation_id)
 
     async def send_personal_message(self, message: dict, websocket: WebSocket):
         await websocket.send_json(message)
@@ -45,7 +49,7 @@ class ConnectionManager:
                 try:
                     await connection.send_json(message)
                 except Exception as e:
-                    print(f"Error broadcasting to client: {e}")
+                    logger.warning("WebSocket broadcast failed: %s", e)
 
     async def _heartbeat(self, websocket: WebSocket):
         """Send ping every 30 seconds"""
@@ -56,7 +60,7 @@ class ConnectionManager:
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            print(f"Heartbeat error: {e}")
+            logger.warning("WebSocket heartbeat failed: %s", e)
 
 
 manager = ConnectionManager()

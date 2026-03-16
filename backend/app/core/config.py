@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     dispatcher_planner_timeout_ms: int = 2500
     dispatcher_planner_retry: int = 1
     dispatcher_debug_feedback: bool = True
+    stream_chunk_batch_chars: int = 24
 
     class Config:
         env_file = ".env"
