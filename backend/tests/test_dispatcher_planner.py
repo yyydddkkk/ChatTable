@@ -1,4 +1,4 @@
-import pytest
+﻿import pytest
 
 from app.modules.dispatcher.infrastructure.planner_client import PlannerClient
 
@@ -50,7 +50,7 @@ async def test_planner_success_returns_structured_plan() -> None:
         completion_fn=fake,
         hard_cap=5,
         retry_count=1,
-        planner_model="qwen3.5-plus",
+        planner_model="qwen-plus",
         planner_api_key="k",
         planner_api_base="https://dashscope.aliyuncs.com/compatible-mode/v1",
         timeout_ms=2500,
@@ -90,7 +90,7 @@ async def test_planner_primary_failure_then_retry_success(caplog) -> None:
         completion_fn=fake,
         hard_cap=5,
         retry_count=1,
-        planner_model="qwen3.5-plus",
+        planner_model="qwen-plus",
         planner_api_key="k",
         planner_api_base=None,
         timeout_ms=2500,
@@ -118,7 +118,7 @@ async def test_planner_retry_failure_falls_back_and_logs(caplog) -> None:
         completion_fn=fake,
         hard_cap=5,
         retry_count=1,
-        planner_model="qwen3.5-plus",
+        planner_model="qwen-plus",
         planner_api_key="k",
         planner_api_base=None,
         timeout_ms=2500,
@@ -157,7 +157,7 @@ async def test_planner_uses_runtime_provider_key_override() -> None:
         completion_fn=fake,
         hard_cap=5,
         retry_count=1,
-        planner_model="qwen3.5-plus",
+        planner_model="qwen-plus",
         planner_api_key="",
         planner_api_base=None,
         timeout_ms=2500,
@@ -176,3 +176,4 @@ async def test_planner_uses_runtime_provider_key_override() -> None:
 
     assert outcome.used_fallback is False
     assert [x.agent_id for x in outcome.plan.selected_agents] == [5]
+

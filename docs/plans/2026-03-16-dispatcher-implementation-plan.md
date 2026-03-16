@@ -1,8 +1,8 @@
-# Dispatcher 实现计划
+﻿# Dispatcher 实现计划
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** 在现有 ChatTable 后端中落地第一版 Dispatcher，使所有用户消息先进入 Dispatcher，再由其使用 qwen3.5-plus 生成调度计划并驱动 AutoGen 执行，失败时自动降级并输出结构化日志。
+**Goal:** 在现有 ChatTable 后端中落地第一版 Dispatcher，使所有用户消息先进入 Dispatcher，再由其使用 qwen-plus 生成调度计划并驱动 AutoGen 执行，失败时自动降级并输出结构化日志。
 
 **Architecture:** 新增 `modules/dispatcher` 子模块，拆分为 schema、planner、service 三层；通过 `ChatApplicationService` 接入 Dispatcher 作为统一入口；对 `AutogenChatEngine` 暴露“按指定 Agent 执行”能力，移除分散决策入口依赖。
 
@@ -52,7 +52,7 @@
 - Expected: FAIL。
 
 **Step 3: Implement minimal code**
-- 使用 `llm_service.generate()` 调用 `qwen3.5-plus`。
+- 使用 `llm_service.generate()` 调用 `qwen-plus`。
 - 将输出做 JSON 解析与 schema 校验。
 - 在失败分支输出 `planner_primary_failed` / `planner_retry_failed` 日志。
 
@@ -104,3 +104,4 @@
 **Step 3: Commit**
 - `git add ...`
 - `git commit -m "feat(dispatcher): add llm-based dispatcher with fallback and logging"`
+

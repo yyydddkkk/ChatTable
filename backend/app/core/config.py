@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     dispatcher_mode: str = "mixed"
     dispatcher_hard_cap: int = 5
     dispatcher_max_rounds: int = 2
-    dispatcher_planner_model: str = "qwen3.5-plus"
+    dispatcher_planner_model: str = "qwen-plus"
     dispatcher_planner_api_key: str = ""
     dispatcher_planner_api_base: str = ""
     dispatcher_planner_timeout_ms: int = 2500

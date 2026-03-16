@@ -1,4 +1,4 @@
-# 2026-03-16 Dispatcher 设计（多 Agent 群聊调度中枢）
+﻿# 2026-03-16 Dispatcher 设计（多 Agent 群聊调度中枢）
 
 ## 1. 目标与范围
 
@@ -7,7 +7,7 @@
 已确认的核心约束如下：
 
 - 调度判定采用全 LLM 模式，不再使用分散的规则判定入口。
-- Planner 使用独立模型 `qwen3.5-plus`，与 Agent 回复模型解耦。
+- Planner 使用独立模型 `qwen-plus`，与 Agent 回复模型解耦。
 - 群聊单条用户消息最大触发数量 `hard_cap=5`。
 - Planner 失败时必须降级兜底，并输出结构化日志。
 - 开发阶段允许前端看到降级提示；生产阶段默认前端无感。
@@ -30,7 +30,7 @@ WebSocket user_message
   -> ChatApplicationService
     -> Dispatcher.handle_message()
       -> ContextLoader (Redis + DB fallback)
-      -> PlannerClient(qwen3.5-plus) [single call]
+      -> PlannerClient(qwen-plus) [single call]
       -> DispatchPlan schema validation
       -> PlanExecutor
          -> sync path OR async queue path
@@ -65,7 +65,7 @@ WebSocket user_message
 
 职责：
 
-- 调用 `qwen3.5-plus` 产出结构化 `DispatchPlan`。
+- 调用 `qwen-plus` 产出结构化 `DispatchPlan`。
 - 单消息最多一次主调用 + 一次重试。
 - 强制 JSON schema 校验，不合法视为失败。
 
@@ -180,7 +180,7 @@ WebSocket user_message
 - `conversation_id`
 - `message_id`
 - `request_id`
-- `planner_model` (`qwen3.5-plus`)
+- `planner_model` (`qwen-plus`)
 - `failure_type` (`timeout/json_invalid/network`)
 - `retry_count`
 - `fallback_strategy`
@@ -203,7 +203,7 @@ WebSocket user_message
 - `DISPATCHER_MODE=mixed`
 - `DISPATCHER_HARD_CAP=5`
 - `DISPATCHER_MAX_ROUNDS=2`
-- `DISPATCHER_PLANNER_MODEL=qwen3.5-plus`
+- `DISPATCHER_PLANNER_MODEL=qwen-plus`
 - `DISPATCHER_PLANNER_TIMEOUT_MS=2500`
 - `DISPATCHER_PLANNER_RETRY=1`
 - `DISPATCHER_DEBUG_FEEDBACK=true`（开发）
@@ -260,3 +260,4 @@ WebSocket user_message
 
 - 混合模式中的异步队列 worker 尚未接入，本版为同步路径优先实现。
 - `ContextLoader` 目前使用 DB + parser，Redis 热上下文与队列调度将在下一迭代补齐。
+
