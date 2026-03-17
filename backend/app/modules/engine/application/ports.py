@@ -32,6 +32,7 @@ class ChatEnginePort(Protocol):
         conversation_id: str,
         content: str,
         plan: "DispatchPlan",
+        pre_saved_user_message_id: int | None,
         db: Session,
         ws_manager: ConnectionManager,
         conversation_lengths: Dict[int, int],

@@ -43,11 +43,24 @@ def compute_effective_cap(hard_cap: int, active_agents_count: int) -> int:
     return min(hard_cap, active_agents_count)
 
 
-def _to_selected_agent(raw: dict[str, Any]) -> SelectedAgent:
+def _to_selected_agent(raw: Any, index: int) -> SelectedAgent:
+    if isinstance(raw, dict):
+        agent_id = raw.get("agent_id", raw.get("id"))
+        if agent_id is None:
+            raise ValueError("selected_agent missing agent_id")
+        priority = raw.get("priority", 100 - index)
+        reason_tag = str(raw.get("reason_tag", "planner_selected"))
+        return SelectedAgent(
+            agent_id=int(agent_id),
+            priority=int(priority),
+            reason_tag=reason_tag,
+        )
+
+    # Some planner responses return selected_agents as a list of raw IDs.
     return SelectedAgent(
-        agent_id=int(raw["agent_id"]),
-        priority=int(raw.get("priority", 0)),
-        reason_tag=str(raw.get("reason_tag", "planner_selected")),
+        agent_id=int(raw),
+        priority=100 - index,
+        reason_tag="planner_selected",
     )
 
 
@@ -66,7 +79,11 @@ def parse_dispatch_plan(
     trigger_message_id: int,
     effective_cap: int,
 ) -> DispatchPlan:
-    selected = [_to_selected_agent(item) for item in raw_plan.get("selected_agents", [])]
+    selected_raw = raw_plan.get("selected_agents", [])
+    if not isinstance(selected_raw, list):
+        raise ValueError("selected_agents must be a list")
+    selected = [_to_selected_agent(item, index) for index, item in enumerate(selected_raw)]
+
     selected.sort(key=lambda item: item.priority, reverse=True)
     if effective_cap >= 0:
         selected = selected[:effective_cap]

@@ -221,6 +221,7 @@ class AutogenChatEngine(ChatEnginePort):
         conversation_id: str,
         content: str,
         plan: DispatchPlan,
+        pre_saved_user_message_id: int | None,
         db: Session,
         ws_manager: ConnectionManager,
         conversation_lengths: Dict[int, int],
@@ -228,28 +229,40 @@ class AutogenChatEngine(ChatEnginePort):
         conv_id = int(conversation_id)
         tenant_id = get_current_tenant_id()
 
-        user_msg = Message(
-            conversation_id=conv_id,
-            tenant_id=tenant_id,
-            sender_type="user",
-            content=content,
-        )
-        db.add(user_msg)
-        db.commit()
-        db.refresh(user_msg)
+        user_msg: Message | None = None
+        if pre_saved_user_message_id is not None:
+            user_msg = db.exec(
+                select(Message).where(
+                    Message.id == pre_saved_user_message_id,
+                    Message.conversation_id == conv_id,
+                    Message.tenant_id == tenant_id,
+                    Message.sender_type == "user",
+                )
+            ).first()
 
-        await ws_manager.broadcast(
-            {
-                "type": "user_message",
-                "message": {
-                    "id": user_msg.id,
-                    "content": content,
-                    "sender_type": "user",
-                    "created_at": user_msg.created_at.isoformat(),
+        if user_msg is None:
+            user_msg = Message(
+                conversation_id=conv_id,
+                tenant_id=tenant_id,
+                sender_type="user",
+                content=content,
+            )
+            db.add(user_msg)
+            db.commit()
+            db.refresh(user_msg)
+
+            await ws_manager.broadcast(
+                {
+                    "type": "user_message",
+                    "message": {
+                        "id": user_msg.id,
+                        "content": content,
+                        "sender_type": "user",
+                        "created_at": user_msg.created_at.isoformat(),
+                    },
                 },
-            },
-            conversation_id,
-        )
+                conversation_id,
+            )
 
         conversation = db.exec(
             select(Conversation).where(
@@ -334,15 +347,19 @@ class AutogenChatEngine(ChatEnginePort):
                         )
                     continue
 
-                await self._run_team(
-                    conversation_id=conversation_id,
-                    db=db,
-                    ws_manager=ws_manager,
-                    agents=stage_agents,
-                    content=cleaned_content,
-                    is_group=is_group,
-                    length_level=current_length,
-                )
+                # Parallel stage means independently generating replies for each
+                # selected agent to avoid cross-agent response contamination.
+                for agent in stage_agents:
+                    await self._run_team(
+                        conversation_id=conversation_id,
+                        db=db,
+                        ws_manager=ws_manager,
+                        agents=[agent],
+                        content=cleaned_content,
+                        is_group=False,
+                        length_level=current_length,
+                        use_checkpoint=False,
+                    )
 
     async def _run_team(
         self,

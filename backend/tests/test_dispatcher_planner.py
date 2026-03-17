@@ -1,4 +1,4 @@
-﻿import pytest
+import pytest
 
 from app.modules.dispatcher.infrastructure.planner_client import PlannerClient
 
@@ -176,4 +176,9 @@ async def test_planner_uses_runtime_provider_key_override() -> None:
 
     assert outcome.used_fallback is False
     assert [x.agent_id for x in outcome.plan.selected_agents] == [5]
+
+
+def test_failure_type_classifies_type_errors_as_json_invalid() -> None:
+    exc = TypeError("'int' object is not subscriptable")
+    assert PlannerClient._failure_type(exc) == "json_invalid"
 

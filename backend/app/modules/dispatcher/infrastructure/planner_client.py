@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 from dataclasses import dataclass
@@ -195,9 +195,15 @@ class PlannerClient:
 
     @staticmethod
     def _failure_type(exc: Exception) -> str:
-        if isinstance(exc, TimeoutError):
+        exc_name = exc.__class__.__name__.lower()
+        exc_text = str(exc).lower()
+        if (
+            isinstance(exc, TimeoutError)
+            or "timeout" in exc_name
+            or "timed out" in exc_text
+        ):
             return "timeout"
-        if isinstance(exc, json.JSONDecodeError) or isinstance(exc, ValueError):
+        if isinstance(exc, (json.JSONDecodeError, ValueError, TypeError, KeyError)):
             return "json_invalid"
         return "network"
 
@@ -255,6 +261,8 @@ class PlannerClient:
             "api_key": api_key,
             "stream": False,
             "timeout": timeout_ms / 1000,
+            # Disable nested SDK retries; Dispatcher already has explicit retry policy.
+            "num_retries": 0,
         }
         if normalized_url:
             kwargs["api_base"] = normalized_url
@@ -265,3 +273,4 @@ class PlannerClient:
         if response.choices and response.choices[0].message.content:
             return str(response.choices[0].message.content)
         raise ValueError("planner response has empty content")
+

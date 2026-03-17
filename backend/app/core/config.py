@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     app_name: str = "ChatTable"
-    debug: bool = True
+    debug: bool = False
     host: str = "0.0.0.0"
     port: int = 8000
     encryption_key: str = "chattable-secret"
@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     stream_chunk_batch_chars: int = 24
     autogen_core_log_level: str = "WARNING"
     autogen_events_log_level: str = "WARNING"
+    litellm_log_level: str = "WARNING"
+    openai_client_log_level: str = "WARNING"
 
     class Config:
         env_file = ".env"
@@ -48,8 +50,16 @@ def setup_logging():
     autogen_events_level = getattr(
         logging, settings.autogen_events_log_level.upper(), logging.WARNING
     )
+    litellm_level = getattr(logging, settings.litellm_log_level.upper(), logging.WARNING)
+    openai_client_level = getattr(
+        logging, settings.openai_client_log_level.upper(), logging.WARNING
+    )
     logging.getLogger("autogen_core").setLevel(autogen_core_level)
     logging.getLogger("autogen_core.events").setLevel(autogen_events_level)
+    logging.getLogger("LiteLLM").setLevel(litellm_level)
+    logging.getLogger("litellm").setLevel(litellm_level)
+    logging.getLogger("openai").setLevel(openai_client_level)
+    logging.getLogger("openai._base_client").setLevel(openai_client_level)
 
 
 def get_logger(name: str) -> logging.Logger:

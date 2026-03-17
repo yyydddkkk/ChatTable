@@ -42,6 +42,30 @@ def test_parse_dispatch_plan_trims_selected_agents_by_cap() -> None:
     assert plan.execution_graph[0].agents == [1, 2]
 
 
+def test_parse_dispatch_plan_accepts_selected_agents_as_id_list() -> None:
+    raw = {
+        "plan_id": "p2",
+        "selected_agents": [3, 1],
+        "execution_graph": [],
+        "round_control": {
+            "max_rounds": 1,
+            "trigger_next_round": False,
+            "next_round_candidates": [],
+        },
+    }
+
+    plan = parse_dispatch_plan(
+        raw_plan=raw,
+        conversation_id=100,
+        trigger_message_id=200,
+        effective_cap=2,
+    )
+
+    assert [item.agent_id for item in plan.selected_agents] == [3, 1]
+    assert [item.priority for item in plan.selected_agents] == [100, 99]
+    assert plan.execution_graph[0].agents == [3, 1]
+
+
 def test_build_fallback_plan_with_mentions_prefers_mentioned_order() -> None:
     plan = build_fallback_plan(
         conversation_id=10,
