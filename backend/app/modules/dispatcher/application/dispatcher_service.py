@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
@@ -123,6 +123,7 @@ class DispatcherService:
         conversation_lengths: dict[int, int],
     ) -> None:
         started = perf_counter()
+        pre_saved_user_message_id: int | None = None
         context_result = self._context_loader(
             conversation_id=conversation_id,
             content=content,
@@ -133,6 +134,34 @@ class DispatcherService:
         else:
             context = context_result
 
+        trigger_message_id = context.trigger_message_id
+        if db is not None:
+            tenant_id = get_current_tenant_id()
+            user_msg = Message(
+                conversation_id=context.conversation_id,
+                tenant_id=tenant_id,
+                sender_type="user",
+                content=content,
+            )
+            db.add(user_msg)
+            db.commit()
+            db.refresh(user_msg)
+            pre_saved_user_message_id = user_msg.id
+            trigger_message_id = user_msg.id if user_msg.id is not None else trigger_message_id
+
+            await ws_manager.broadcast(
+                {
+                    "type": "user_message",
+                    "message": {
+                        "id": user_msg.id,
+                        "content": content,
+                        "sender_type": "user",
+                        "created_at": user_msg.created_at.isoformat(),
+                    },
+                },
+                conversation_id,
+            )
+
         planner_api_key, planner_api_base = self._resolve_planner_credentials(
             db=db,
             context=context,
@@ -140,7 +169,7 @@ class DispatcherService:
 
         outcome = await self._planner_client.plan(
             conversation_id=context.conversation_id,
-            trigger_message_id=context.trigger_message_id,
+            trigger_message_id=trigger_message_id,
             message_content=context.cleaned_content,
             active_agent_ids=context.active_agent_ids,
             mentioned_ids=context.mentioned_ids,
@@ -160,6 +189,42 @@ class DispatcherService:
             )
 
         selected_agent_ids = [item.agent_id for item in outcome.plan.selected_agents]
+        missing_mentioned_ids = [
+            agent_id for agent_id in context.mentioned_ids if agent_id not in selected_agent_ids
+        ]
+        plan_payload = {
+            "plan_id": outcome.plan.plan_id,
+            "selected_agents": [
+                {
+                    "agent_id": item.agent_id,
+                    "priority": item.priority,
+                    "reason_tag": item.reason_tag,
+                }
+                for item in outcome.plan.selected_agents
+            ],
+            "execution_graph": [
+                {
+                    "stage": stage.stage,
+                    "mode": stage.mode,
+                    "agents": stage.agents,
+                }
+                for stage in outcome.plan.execution_graph
+            ],
+            "round_control": {
+                "max_rounds": outcome.plan.round_control.max_rounds,
+                "trigger_next_round": outcome.plan.round_control.trigger_next_round,
+                "next_round_candidates": outcome.plan.round_control.next_round_candidates,
+            },
+            "deferred_candidates": outcome.plan.deferred_candidates,
+        }
+        context_payload = {
+            "raw_content": content,
+            "cleaned_content": context.cleaned_content,
+            "active_agent_ids": context.active_agent_ids,
+            "mentioned_ids": context.mentioned_ids,
+            "missing_mentioned_ids": missing_mentioned_ids,
+            "is_group": context.is_group,
+        }
         latency_ms = int((perf_counter() - started) * 1000)
 
         if settings.dispatcher_debug_feedback:
@@ -167,12 +232,14 @@ class DispatcherService:
                 {
                     "type": "dispatcher_summary",
                     "conversation_id": context.conversation_id,
-                    "message_id": context.trigger_message_id,
+                    "message_id": trigger_message_id,
                     "selected_agents": selected_agent_ids,
                     "fallback": outcome.used_fallback,
                     "failure_type": outcome.failure_type,
                     "retry_count": outcome.retry_count,
                     "latency_ms": latency_ms,
+                    "context": context_payload,
+                    "plan": plan_payload,
                 },
                 conversation_id,
             )
@@ -180,7 +247,7 @@ class DispatcherService:
         logger.info(
             "dispatch_summary event=dispatch_summary conversation_id=%s message_id=%s selected_agents=%s fallback=%s failure_type=%s retry_count=%s latency_ms=%d",
             context.conversation_id,
-            context.trigger_message_id,
+            trigger_message_id,
             selected_agent_ids,
             outcome.used_fallback,
             outcome.failure_type,
@@ -192,6 +259,7 @@ class DispatcherService:
             conversation_id=conversation_id,
             content=context.cleaned_content,
             plan=outcome.plan,
+            pre_saved_user_message_id=pre_saved_user_message_id,
             db=db,
             ws_manager=ws_manager,
             conversation_lengths=conversation_lengths,
@@ -266,3 +334,4 @@ class DispatcherService:
             mentioned_ids=mentioned_ids,
             is_group=conversation.type == "group",
         )
+

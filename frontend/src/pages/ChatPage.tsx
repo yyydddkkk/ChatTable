@@ -16,12 +16,49 @@ interface ChatPageProps {
   onOpenDetail?: () => void;
 }
 
+interface DispatcherSelectedAgentDetail {
+  agentId: number;
+  priority: number;
+  reasonTag: string;
+}
+
+interface DispatcherExecutionStageDetail {
+  stage: number;
+  mode: string;
+  agents: number[];
+}
+
+interface DispatcherRoundControlDetail {
+  maxRounds: number;
+  triggerNextRound: boolean;
+  nextRoundCandidates: number[];
+}
+
+interface DispatcherContextDetail {
+  rawContent?: string;
+  cleanedContent?: string;
+  activeAgentIds: number[];
+  mentionedIds: number[];
+  missingMentionedIds: number[];
+  isGroup?: boolean;
+}
+
+interface DispatcherPlanDetail {
+  planId?: string;
+  selectedAgents: DispatcherSelectedAgentDetail[];
+  executionGraph: DispatcherExecutionStageDetail[];
+  roundControl?: DispatcherRoundControlDetail;
+  deferredCandidates: number[];
+}
+
 interface DispatcherDebugEntry {
+  context?: DispatcherContextDetail;
   createdAt: string;
   fallback: boolean;
   failureType?: string;
   latencyMs: number;
   messageId?: number;
+  plan?: DispatcherPlanDetail;
   retryCount: number;
   selectedAgents: number[];
   type: 'summary' | 'degraded';
@@ -162,9 +199,88 @@ export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail
       } else if (data.type === 'cleared') {
         useConversationStore.getState().clearMessages();
       } else if (data.type === 'dispatcher_summary' && isDispatchPanelEnabled) {
+        const contextData = (typeof data.context === 'object' && data.context !== null)
+          ? (data.context as Record<string, unknown>)
+          : null;
+        const planData = (typeof data.plan === 'object' && data.plan !== null)
+          ? (data.plan as Record<string, unknown>)
+          : null;
+
+        const context: DispatcherContextDetail | undefined = contextData ? {
+          rawContent: typeof contextData.raw_content === 'string' ? contextData.raw_content : undefined,
+          cleanedContent: typeof contextData.cleaned_content === 'string' ? contextData.cleaned_content : undefined,
+          activeAgentIds: Array.isArray(contextData.active_agent_ids)
+            ? contextData.active_agent_ids
+                .map((item: unknown) => Number(item))
+                .filter((id: number) => !Number.isNaN(id))
+            : [],
+          mentionedIds: Array.isArray(contextData.mentioned_ids)
+            ? contextData.mentioned_ids
+                .map((item: unknown) => Number(item))
+                .filter((id: number) => !Number.isNaN(id))
+            : [],
+          missingMentionedIds: Array.isArray(contextData.missing_mentioned_ids)
+            ? contextData.missing_mentioned_ids
+                .map((item: unknown) => Number(item))
+                .filter((id: number) => !Number.isNaN(id))
+            : [],
+          isGroup: typeof contextData.is_group === 'boolean' ? contextData.is_group : undefined,
+        } : undefined;
+
+        const plan: DispatcherPlanDetail | undefined = planData ? {
+          planId: typeof planData.plan_id === 'string' ? planData.plan_id : undefined,
+          selectedAgents: Array.isArray(planData.selected_agents)
+            ? planData.selected_agents
+                .filter((item: unknown) => typeof item === 'object' && item !== null)
+                .map((item: unknown) => {
+                  const row = item as Record<string, unknown>;
+                  return {
+                    agentId: Number(row.agent_id),
+                    priority: Number(row.priority),
+                    reasonTag: typeof row.reason_tag === 'string' ? row.reason_tag : 'unknown',
+                  };
+                })
+                .filter((item: DispatcherSelectedAgentDetail) => !Number.isNaN(item.agentId))
+            : [],
+          executionGraph: Array.isArray(planData.execution_graph)
+            ? planData.execution_graph
+                .filter((item: unknown) => typeof item === 'object' && item !== null)
+                .map((item: unknown) => {
+                  const row = item as Record<string, unknown>;
+                  return {
+                    stage: Number(row.stage),
+                    mode: typeof row.mode === 'string' ? row.mode : 'parallel',
+                    agents: Array.isArray(row.agents)
+                      ? row.agents
+                          .map((agentId: unknown) => Number(agentId))
+                          .filter((agentId: number) => !Number.isNaN(agentId))
+                      : [],
+                  };
+                })
+                .filter((item: DispatcherExecutionStageDetail) => !Number.isNaN(item.stage))
+            : [],
+          roundControl: (typeof planData.round_control === 'object' && planData.round_control !== null)
+            ? {
+                maxRounds: Number((planData.round_control as Record<string, unknown>).max_rounds),
+                triggerNextRound: Boolean((planData.round_control as Record<string, unknown>).trigger_next_round),
+                nextRoundCandidates: Array.isArray((planData.round_control as Record<string, unknown>).next_round_candidates)
+                  ? ((planData.round_control as Record<string, unknown>).next_round_candidates as unknown[])
+                      .map((item: unknown) => Number(item))
+                      .filter((id: number) => !Number.isNaN(id))
+                  : [],
+              }
+            : undefined,
+          deferredCandidates: Array.isArray(planData.deferred_candidates)
+            ? planData.deferred_candidates
+                .map((item: unknown) => Number(item))
+                .filter((id: number) => !Number.isNaN(id))
+            : [],
+        } : undefined;
+
         const entry: DispatcherDebugEntry = {
           type: 'summary',
           createdAt: new Date().toISOString(),
+          context,
           selectedAgents: Array.isArray(data.selected_agents)
             ? data.selected_agents.map((item: unknown) => Number(item)).filter((id: number) => !Number.isNaN(id))
             : [],
@@ -173,6 +289,7 @@ export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail
           retryCount: typeof data.retry_count === 'number' ? data.retry_count : 0,
           latencyMs: typeof data.latency_ms === 'number' ? data.latency_ms : 0,
           messageId: typeof data.message_id === 'number' ? data.message_id : undefined,
+          plan,
         };
         setDispatchDebugEntries((prev) => [entry, ...prev].slice(0, 30));
       }
@@ -318,9 +435,48 @@ export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail
                       <div className="text-slate-600">
                         selected=[{entry.selectedAgents.join(',')}]
                       </div>
+                      {entry.context && (
+                        <div className="text-slate-600">
+                          mentioned=[{entry.context.mentionedIds.join(',')}]
+                        </div>
+                      )}
+                      {entry.plan && (
+                        <div className="text-slate-600">
+                          plan={entry.plan.planId ?? 'unknown'}
+                        </div>
+                      )}
                       <div className="text-slate-600">
                         fallback={String(entry.fallback)} retry={entry.retryCount} latency={entry.latencyMs}ms
                       </div>
+                      {entry.context && entry.context.missingMentionedIds.length > 0 && (
+                        <div className="text-amber-700">
+                          missing_mentioned=[{entry.context.missingMentionedIds.join(',')}]
+                        </div>
+                      )}
+                      {entry.plan && entry.plan.selectedAgents.length > 0 && (
+                        <div className="text-slate-600">
+                          reasons={entry.plan.selectedAgents
+                            .map((item) => `${item.agentId}:${item.reasonTag}(${item.priority})`)
+                            .join(', ')}
+                        </div>
+                      )}
+                      {entry.plan && entry.plan.executionGraph.length > 0 && (
+                        <div className="text-slate-600">
+                          graph={entry.plan.executionGraph
+                            .map((stage) => `s${stage.stage}-${stage.mode}[${stage.agents.join(',')}]`)
+                            .join(' | ')}
+                        </div>
+                      )}
+                      {entry.context?.rawContent && (
+                        <div className="text-slate-500">
+                          input={entry.context.rawContent.slice(0, 80)}
+                        </div>
+                      )}
+                      {entry.context?.cleanedContent && entry.context.cleanedContent !== entry.context.rawContent && (
+                        <div className="text-slate-500">
+                          cleaned={entry.context.cleanedContent.slice(0, 80)}
+                        </div>
+                      )}
                       {entry.failureType && (
                         <div className="text-rose-700">failure={entry.failureType}</div>
                       )}

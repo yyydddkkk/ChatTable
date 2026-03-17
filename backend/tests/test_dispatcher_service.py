@@ -24,6 +24,7 @@ class FakeEngine:
         conversation_id,
         content,
         plan,
+        pre_saved_user_message_id,
         db,
         ws_manager,
         conversation_lengths,
@@ -33,6 +34,7 @@ class FakeEngine:
                 "conversation_id": conversation_id,
                 "content": content,
                 "plan": plan,
+                "pre_saved_user_message_id": pre_saved_user_message_id,
                 "conversation_lengths": conversation_lengths,
             }
         )
@@ -73,6 +75,22 @@ class FakeWsManager:
 
     async def broadcast(self, message: dict, conversation_id: str) -> None:
         self.events.append((conversation_id, message))
+
+
+class FakeDbSession:
+    def __init__(self) -> None:
+        self._next_id = 500
+
+    def add(self, _obj) -> None:
+        return None
+
+    def commit(self) -> None:
+        return None
+
+    def refresh(self, obj) -> None:
+        if getattr(obj, "id", None) is None:
+            obj.id = self._next_id
+            self._next_id += 1
 
 
 def _plan() -> DispatchPlan:
@@ -176,3 +194,106 @@ async def test_dispatcher_emits_degraded_event_in_debug(monkeypatch) -> None:
     )
 
     assert any(evt[1].get("type") == "dispatcher_degraded" for evt in ws.events)
+
+
+@pytest.mark.anyio
+async def test_dispatcher_broadcasts_user_message_before_planning(monkeypatch) -> None:
+    plan = _plan()
+    outcome = PlannerOutcome(
+        plan=plan,
+        used_fallback=False,
+        failure_type=None,
+        retry_count=0,
+    )
+
+    fake_planner = FakePlanner(outcome)
+    service = DispatcherService(
+        engine=FakeEngine(),
+        planner_client=fake_planner,
+        context_loader=lambda **_: MessageDispatchContext(
+            conversation_id=1,
+            trigger_message_id=123,
+            cleaned_content="hello",
+            active_agent_ids=[9],
+            active_provider_ids=[99],
+            mentioned_ids=[9],
+            is_group=True,
+        ),
+    )
+    monkeypatch.setattr(
+        service,
+        "_resolve_planner_credentials",
+        lambda db, context: ("provider-key", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+    )
+
+    ws = FakeWsManager()
+    db = FakeDbSession()
+    await service.handle_user_message(
+        conversation_id="1",
+        content="@A hi",
+        db=db,
+        ws_manager=ws,
+        conversation_lengths={1: 3},
+    )
+
+    assert ws.events
+    assert ws.events[0][1]["type"] == "user_message"
+    user_message_id = ws.events[0][1]["message"]["id"]
+    assert user_message_id is not None
+    assert fake_planner.last_call is not None
+    assert fake_planner.last_call["trigger_message_id"] == user_message_id
+    assert service._engine.calls[0]["pre_saved_user_message_id"] == user_message_id
+
+
+@pytest.mark.anyio
+async def test_dispatcher_summary_contains_plan_details(monkeypatch) -> None:
+    plan = _plan()
+    outcome = PlannerOutcome(
+        plan=plan,
+        used_fallback=False,
+        failure_type=None,
+        retry_count=0,
+    )
+
+    monkeypatch.setattr(
+        "app.modules.dispatcher.application.dispatcher_service.settings.dispatcher_debug_feedback",
+        True,
+    )
+
+    service = DispatcherService(
+        engine=FakeEngine(),
+        planner_client=FakePlanner(outcome),
+        context_loader=lambda **_: MessageDispatchContext(
+            conversation_id=1,
+            trigger_message_id=123,
+            cleaned_content="please let Mike answer",
+            active_agent_ids=[9, 11],
+            active_provider_ids=[],
+            mentioned_ids=[11],
+            is_group=True,
+        ),
+    )
+
+    ws = FakeWsManager()
+    await service.handle_user_message(
+        conversation_id="1",
+        content="@Mike please answer",
+        db=None,
+        ws_manager=ws,
+        conversation_lengths={1: 3},
+    )
+
+    summary_events = [event for _, event in ws.events if event.get("type") == "dispatcher_summary"]
+    assert len(summary_events) == 1
+
+    summary = summary_events[0]
+    assert summary["plan"]["plan_id"] == "p-1"
+    assert summary["plan"]["selected_agents"] == [
+        {"agent_id": 9, "priority": 100, "reason_tag": "mention"}
+    ]
+    assert summary["plan"]["execution_graph"] == [
+        {"stage": 1, "mode": "serial", "agents": [9]}
+    ]
+    assert summary["context"]["mentioned_ids"] == [11]
+    assert summary["context"]["active_agent_ids"] == [9, 11]
+
