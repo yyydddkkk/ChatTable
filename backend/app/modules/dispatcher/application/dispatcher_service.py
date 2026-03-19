@@ -240,6 +240,7 @@ class DispatcherService:
                     "latency_ms": latency_ms,
                     "context": context_payload,
                     "plan": plan_payload,
+                    "planner_output_preview": outcome.planner_output_preview,
                 },
                 conversation_id,
             )

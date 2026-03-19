@@ -253,6 +253,7 @@ async def test_dispatcher_summary_contains_plan_details(monkeypatch) -> None:
         used_fallback=False,
         failure_type=None,
         retry_count=0,
+        planner_output_preview='{"plan_id":"p-1","selected_agents":[{"agent_id":9}]}',
     )
 
     monkeypatch.setattr(
@@ -294,6 +295,7 @@ async def test_dispatcher_summary_contains_plan_details(monkeypatch) -> None:
     assert summary["plan"]["execution_graph"] == [
         {"stage": 1, "mode": "serial", "agents": [9]}
     ]
+    assert summary["planner_output_preview"] == '{"plan_id":"p-1","selected_agents":[{"agent_id":9}]}'
     assert summary["context"]["mentioned_ids"] == [11]
     assert summary["context"]["active_agent_ids"] == [9, 11]
 
