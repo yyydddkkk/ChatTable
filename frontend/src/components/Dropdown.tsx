@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { ChevronDown, Check } from 'lucide-react';
+﻿import { useEffect, useRef, useState } from 'react';
+import { Check, ChevronDown } from 'lucide-react';
 
 interface DropdownOption {
   value: number | string;
@@ -14,11 +14,17 @@ interface DropdownProps {
   label?: string;
 }
 
-export default function Dropdown({ options, value, onChange, placeholder = 'Select...', label }: DropdownProps) {
+export default function Dropdown({
+  options,
+  value,
+  onChange,
+  placeholder = '请选择',
+  label,
+}: DropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const selectedOption = options.find(opt => opt.value === value);
+  const selectedOption = options.find((option) => option.value === value);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -33,47 +39,48 @@ export default function Dropdown({ options, value, onChange, placeholder = 'Sele
 
   return (
     <div ref={containerRef} className="relative">
-      {label && (
-        <label className="block text-sm font-medium text-text mb-1">{label}</label>
-      )}
+      {label && <label className="mb-2 block text-sm font-medium text-[--color-text]">{label}</label>}
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-3 py-2 rounded-lg bg-surface text-left flex items-center justify-between transition focus:outline-none focus:ring-2 focus:ring-primary/50"
-        style={{ border: '1px solid rgba(0,0,0,0.06)' }}
+        onClick={() => setIsOpen((previous) => !previous)}
+        className="pluto-dropdown-button flex h-11 w-full items-center justify-between rounded-2xl px-4 text-left text-sm transition focus:outline-none focus:ring-2 focus:ring-[--color-primary]/30"
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
-        <span className={selectedOption ? 'text-text' : 'text-text-muted'}>
+        <span className={selectedOption ? 'text-[--color-text]' : 'text-[--color-text-subtle]'}>
           {selectedOption?.label || placeholder}
         </span>
-        <ChevronDown size={16} className={`text-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown
+          size={16}
+          className={`text-[--color-text-subtle] transition-transform ${isOpen ? 'rotate-180' : ''}`}
+        />
       </button>
 
       {isOpen && (
-        <div 
-          className="absolute z-50 w-full mt-1 bg-surface rounded-lg max-h-60 overflow-y-auto"
-          style={{ border: '1px solid rgba(0,0,0,0.06)', boxShadow: '0 8px 24px rgba(0,0,0,0.1)' }}
+        <div
+          className="pluto-dropdown-panel absolute z-50 mt-2 max-h-64 w-full overflow-y-auto rounded-[24px] p-2"
           role="listbox"
         >
-          {options.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => {
-                onChange(option.value);
-                setIsOpen(false);
-              }}
-              className={`w-full px-3 py-2 text-left flex items-center justify-between hover:bg-background transition ${
-                option.value === value ? 'text-primary bg-primary/5' : 'text-text'
-              }`}
-              role="option"
-              aria-selected={option.value === value}
-            >
-              <span>{option.label}</span>
-              {option.value === value && <Check size={16} />}
-            </button>
-          ))}
+          {options.map((option) => {
+            const active = option.value === value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  onChange(option.value);
+                  setIsOpen(false);
+                }}
+                data-active={active ? 'true' : 'false'}
+                className="pluto-dropdown-option flex w-full items-center justify-between rounded-2xl px-3 py-3 text-left text-sm transition"
+                role="option"
+                aria-selected={active}
+              >
+                <span>{option.label}</span>
+                {active && <Check size={15} className="text-[--color-primary]" />}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
