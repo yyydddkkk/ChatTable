@@ -1,5 +1,6 @@
-import { Bot, User, Sparkles, Wand2, Code, FlaskConical, Palette, BookOpen, Star, Lightbulb } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { createElement } from 'react';
+import { Bot, BookOpen, Code, FlaskConical, Lightbulb, Palette, Sparkles, Star, User, Wand2 } from 'lucide-react';
+import type { ComponentProps } from 'react';
 
 export interface AgentPalette {
   bg: string;
@@ -16,25 +17,35 @@ export const AGENT_PALETTES: AgentPalette[] = [
   { bg: '#F5EDFF', border: '#C090F4', dot: '#9A5AE8', text: '#3E1E7A' },
 ];
 
-const AVATAR_ICON_MAP: Record<string, LucideIcon> = {
-  Robot: Bot,
-  User: User,
-  Sparkles: Sparkles,
-  Magic: Wand2,
-  Developer: Code,
-  Scientist: FlaskConical,
-  Artist: Palette,
-  Scholar: BookOpen,
-  Star: Star,
-  Idea: Lightbulb,
-};
+interface AvatarIconProps extends ComponentProps<typeof Bot> {
+  avatarLabel?: string | null;
+}
 
-export const getAvatarIcon = (avatarLabel?: string | null): LucideIcon => {
-  if (avatarLabel && AVATAR_ICON_MAP[avatarLabel]) {
-    return AVATAR_ICON_MAP[avatarLabel];
+export function AvatarIcon({ avatarLabel, ...props }: AvatarIconProps) {
+  switch (avatarLabel) {
+    case 'User':
+      return createElement(User, props);
+    case 'Sparkles':
+      return createElement(Sparkles, props);
+    case 'Magic':
+      return createElement(Wand2, props);
+    case 'Developer':
+      return createElement(Code, props);
+    case 'Scientist':
+      return createElement(FlaskConical, props);
+    case 'Artist':
+      return createElement(Palette, props);
+    case 'Scholar':
+      return createElement(BookOpen, props);
+    case 'Star':
+      return createElement(Star, props);
+    case 'Idea':
+      return createElement(Lightbulb, props);
+    case 'Robot':
+    default:
+      return createElement(Bot, props);
   }
-  return Bot;
-};
+}
 
 export const getAgentPalette = (id: number | string): AgentPalette => {
   const index = typeof id === 'string' ? parseInt(id) : id;
