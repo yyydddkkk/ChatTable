@@ -1,16 +1,12 @@
-from sqlmodel import SQLModel, create_engine, text
+﻿from sqlmodel import SQLModel, create_engine, text
 from app.core.config import settings, get_logger
 
 logger = get_logger(__name__)
 
-# Database URL
 DATABASE_URL = settings.database_url
-
-# Create engine
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 engine = create_engine(DATABASE_URL, echo=settings.debug, connect_args=connect_args)
 
-# New columns to add to existing tables (table, column, type, default)
 _MIGRATIONS = [
     ("agents", "tenant_id", "VARCHAR(100)", "local"),
     ("agents", "personality", "TEXT", None),
@@ -33,6 +29,11 @@ _INDEX_MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS ix_conversation_memories_tenant_conv_agent ON conversation_memories (tenant_id, conversation_id, agent_id)",
     "CREATE INDEX IF NOT EXISTS ix_autogen_checkpoints_tenant_updated ON autogen_checkpoints (tenant_id, updated_at)",
     "CREATE INDEX IF NOT EXISTS ix_audit_logs_tenant_created_at ON audit_logs (tenant_id, created_at)",
+    "CREATE INDEX IF NOT EXISTS ix_agent_runtime_states_tenant_agent ON agent_runtime_states (tenant_id, agent_id)",
+    "CREATE INDEX IF NOT EXISTS ix_agent_relationship_states_tenant_agent_user ON agent_relationship_states (tenant_id, agent_id, user_id)",
+    "CREATE INDEX IF NOT EXISTS ix_agent_event_logs_tenant_agent_created ON agent_event_logs (tenant_id, agent_id, created_at)",
+    "CREATE INDEX IF NOT EXISTS ix_agent_checkpoints_tenant_agent ON agent_checkpoints (tenant_id, agent_id)",
+    "CREATE INDEX IF NOT EXISTS ix_agent_memory_entries_tenant_agent_conversation ON agent_memory_entries (tenant_id, agent_id, conversation_id)",
 ]
 
 
@@ -61,6 +62,11 @@ def _run_migrations():
 def init_db():
     """Initialize database tables"""
     from app.models.agent import Agent
+    from app.models.agent_checkpoint import AgentCheckpoint
+    from app.models.agent_event_log import AgentEventLog
+    from app.models.agent_memory_entry import AgentMemoryEntry
+    from app.models.agent_relationship_state import AgentRelationshipState
+    from app.models.agent_runtime_state import AgentRuntimeState
     from app.models.audit_log import AuditLog
     from app.models.autogen_checkpoint import AutogenCheckpoint
     from app.models.conversation import Conversation

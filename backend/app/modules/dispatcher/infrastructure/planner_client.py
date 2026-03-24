@@ -26,6 +26,7 @@ class PlannerOutcome:
     used_fallback: bool
     failure_type: str | None
     retry_count: int
+    planner_output_preview: str | None = None
 
 
 class PlannerClient:
@@ -130,6 +131,7 @@ class PlannerClient:
         )
 
         last_failure_type = "unknown"
+        last_output_preview: str | None = None
         max_attempts = 1 + max(0, self._retry_count)
         for attempt in range(max_attempts):
             try:
@@ -140,6 +142,7 @@ class PlannerClient:
                     messages=prompt_messages,
                     timeout_ms=self._timeout_ms,
                 )
+                last_output_preview = self._preview(raw_output)
                 raw_json = self._extract_json(raw_output)
                 raw_plan = json.loads(raw_json)
                 plan = parse_dispatch_plan(
@@ -156,6 +159,7 @@ class PlannerClient:
                     used_fallback=False,
                     failure_type=None,
                     retry_count=attempt,
+                    planner_output_preview=last_output_preview,
                 )
             except Exception as exc:
                 last_failure_type = self._failure_type(exc)
@@ -191,7 +195,13 @@ class PlannerClient:
             used_fallback=True,
             failure_type=last_failure_type,
             retry_count=max_attempts - 1,
+            planner_output_preview=last_output_preview,
         )
+
+    @staticmethod
+    def _preview(raw_output: str, limit: int = 240) -> str:
+        compact = " ".join(raw_output.split())
+        return compact[:limit]
 
     @staticmethod
     def _failure_type(exc: Exception) -> str:
@@ -273,4 +283,3 @@ class PlannerClient:
         if response.choices and response.choices[0].message.content:
             return str(response.choices[0].message.content)
         raise ValueError("planner response has empty content")
-

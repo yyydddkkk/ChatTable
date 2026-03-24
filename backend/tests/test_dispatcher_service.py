@@ -13,6 +13,9 @@ from app.modules.dispatcher.domain.schemas import (
     SelectedAgent,
 )
 from app.modules.dispatcher.infrastructure.planner_client import PlannerOutcome
+from app.modules.im.application.dispatcher_debug_history import (
+    DispatcherDebugHistoryStore,
+)
 
 
 class FakeEngine:
@@ -297,3 +300,53 @@ async def test_dispatcher_summary_contains_plan_details(monkeypatch) -> None:
     assert summary["context"]["mentioned_ids"] == [11]
     assert summary["context"]["active_agent_ids"] == [9, 11]
 
+
+
+@pytest.mark.anyio
+async def test_dispatcher_records_recent_summary_for_debug_query(monkeypatch) -> None:
+    plan = _plan()
+    outcome = PlannerOutcome(
+        plan=plan,
+        used_fallback=False,
+        failure_type=None,
+        retry_count=0,
+        planner_output_preview='{"plan_id":"p-1"}',
+    )
+
+    monkeypatch.setattr(
+        "app.modules.dispatcher.application.dispatcher_service.settings.dispatcher_debug_feedback",
+        True,
+    )
+
+    history_store = DispatcherDebugHistoryStore(max_entries_per_conversation=10)
+    service = DispatcherService(
+        engine=FakeEngine(),
+        planner_client=FakePlanner(outcome),
+        context_loader=lambda **_: MessageDispatchContext(
+            conversation_id=1,
+            trigger_message_id=123,
+            cleaned_content="please let Mike answer",
+            active_agent_ids=[9, 11],
+            active_provider_ids=[],
+            mentioned_ids=[11],
+            is_group=True,
+        ),
+        debug_history_store=history_store,
+    )
+
+    ws = FakeWsManager()
+    await service.handle_user_message(
+        conversation_id="1",
+        content="@Mike please answer",
+        db=None,
+        ws_manager=ws,
+        conversation_lengths={1: 3},
+    )
+
+    records = history_store.list_recent(tenant_id="local", conversation_id=1, limit=5)
+    assert len(records) == 1
+    assert records[0]["type"] == "summary"
+    assert records[0]["created_at"]
+    assert records[0]["message_id"] == 123
+    assert records[0]["plan"]["plan_id"] == "p-1"
+    assert records[0]["planner_output_preview"] == '{"plan_id":"p-1"}'

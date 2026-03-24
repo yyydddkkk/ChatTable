@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 
 from pydantic_settings import BaseSettings
 
@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     database_url: str = "sqlite:///./chattable.db"
     redis_url: str = "redis://localhost:6379/0"
     chat_engine: str = "legacy"
+    agent_runtime_mode: str = "legacy"
 
     dispatcher_enabled: bool = True
     dispatcher_mode: str = "mixed"
