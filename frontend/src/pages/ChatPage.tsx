@@ -59,6 +59,7 @@ interface DispatcherDebugEntry {
   latencyMs: number;
   messageId?: number;
   plan?: DispatcherPlanDetail;
+  plannerOutputPreview?: string;
   retryCount: number;
   selectedAgents: number[];
   type: 'summary' | 'degraded';
@@ -290,6 +291,9 @@ export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail
           latencyMs: typeof data.latency_ms === 'number' ? data.latency_ms : 0,
           messageId: typeof data.message_id === 'number' ? data.message_id : undefined,
           plan,
+          plannerOutputPreview: typeof data.planner_output_preview === 'string'
+            ? data.planner_output_preview
+            : undefined,
         };
         setDispatchDebugEntries((prev) => [entry, ...prev].slice(0, 30));
       }
@@ -317,7 +321,7 @@ export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail
     if (command === 'clear' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'clear' }));
     } else if (command === 'help') {
-      const helpText = '可用命令:\n/clear - 清除聊天记录\n/help - 显示帮助';
+      const helpText = '鍙敤鍛戒护:\n/clear - 娓呴櫎鑱婂ぉ璁板綍\n/help - 鏄剧ず甯姪';
       addMessage({
         id: Date.now(),
         conversation_id: currentConversation?.id || 0,
@@ -374,7 +378,7 @@ export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail
           onClick={onBack}
           className="absolute top-4 left-4 p-2 text-text-muted hover:text-text bg-surface rounded-lg transition z-10"
         >
-          ← Back
+          鈫?Back
         </button>
       )}
 
@@ -385,7 +389,7 @@ export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail
               className="w-10 h-10 rounded-full mx-auto mb-3 animate-spin"
               style={{ border: '2px solid rgba(234,120,80,0.2)', borderTopColor: 'var(--color-primary)' }}
             />
-            <p className="text-sm text-[--color-text-muted]">正在连接会话...</p>
+            <p className="text-sm text-[--color-text-muted]">姝ｅ湪杩炴帴浼氳瘽...</p>
           </div>
         </div>
       ) : (
@@ -475,6 +479,11 @@ export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail
                       {entry.context?.cleanedContent && entry.context.cleanedContent !== entry.context.rawContent && (
                         <div className="text-slate-500">
                           cleaned={entry.context.cleanedContent.slice(0, 80)}
+                        </div>
+                      )}
+                      {entry.plannerOutputPreview && (
+                        <div className="text-slate-500 break-words">
+                          planner_output={entry.plannerOutputPreview}
                         </div>
                       )}
                       {entry.failureType && (
