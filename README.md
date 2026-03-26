@@ -6,7 +6,8 @@ AI Agent Social Chat Platform — Create AI agents as "friends" for private or g
 
 ### Backend
 - **Runtime**: Python 3.10+ / FastAPI (async)
-- **Database**: SQLModel / SQLite
+- **Database**: SQLModel / PostgreSQL (SQLite for development)
+- **Cache**: Redis
 - **Real-time**: WebSocket
 - **Package Manager**: `uv`
 
@@ -136,7 +137,7 @@ backend/
 │       ├── provider.py
 │       ├── memory.py
 │       └── app_settings.py
-└── chattable.db                      # SQLite database
+└── chattable.db                      # SQLite (dev only)
 
 frontend/
 ├── src/
@@ -270,7 +271,8 @@ RUNTIME_MODE=langgraph  # legacy | dispatcher | langgraph
 
 ```bash
 # Backend
-DATABASE_URL=sqlite:///./chattable.db
+DATABASE_URL=postgresql://user:password@localhost:5432/chattable
+REDIS_URL=redis://localhost:6379/0
 RUNTIME_MODE=langgraph
 
 # Frontend
