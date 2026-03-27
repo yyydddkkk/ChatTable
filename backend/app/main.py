@@ -20,12 +20,6 @@ from app.core.request_context import (
     set_request_context,
 )
 from app.core.websocket import manager
-from app.modules.agents.application.conversation_orchestrator import (
-    ConversationOrchestrator,
-)
-from app.modules.agents.application.default_agent_runtime_service import (
-    DefaultAgentRuntimeService,
-)
 from app.modules.dispatcher.application.dispatcher_service import (
     DispatcherService,
     resolve_planner_credentials,
@@ -43,17 +37,9 @@ dispatcher_service = (
     if settings.dispatcher_enabled and settings.chat_engine.strip().lower() == "autogen"
     else None
 )
-orchestrator_service = (
-    ConversationOrchestrator(
-        runtime_service=DefaultAgentRuntimeService(ws_manager=manager)
-    )
-    if settings.agent_runtime_mode.strip().lower() == "langgraph"
-    else None
-)
 chat_application_service = ChatApplicationService(
     engine=chat_engine,
     dispatcher=dispatcher_service,
-    orchestrator=orchestrator_service,
 )
 
 
@@ -74,6 +60,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.app_name, debug=settings.debug, lifespan=lifespan)
 
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173"],
@@ -82,6 +69,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Include routers
 app.include_router(api_router)
 app.middleware("http")(request_context_middleware)
 

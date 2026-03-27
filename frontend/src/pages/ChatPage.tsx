@@ -306,7 +306,7 @@ export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail
       websocket.close();
       wsRef.current = null;
     };
-  }, [conversationIdForWs, tenantId, accessToken]);
+  }, [conversationIdForWs, tenantId, accessToken, isDispatchPanelEnabled]);
 
   const handleSend = useCallback((content: string) => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -317,7 +317,7 @@ export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail
     }
   }, []);
 
-  const handleCommand = useCallback((command: string, _args: string) => {
+  const handleCommand = useCallback((command: string) => {
     if (command === 'clear' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: 'clear' }));
     } else if (command === 'help') {

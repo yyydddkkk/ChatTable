@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from time import perf_counter
 from typing import Any, Callable
 
@@ -18,10 +17,6 @@ from app.models.conversation import Conversation
 from app.models.message import Message
 from app.models.provider import Provider
 from app.modules.dispatcher.infrastructure.planner_client import PlannerClient
-from app.modules.im.application.dispatcher_debug_history import (
-    DispatcherDebugHistoryStore,
-    dispatcher_debug_history_store,
-)
 from app.modules.engine.application.ports import ChatEnginePort
 from app.services.message_parser import get_conversation_agents, parse_mentions
 
@@ -114,12 +109,10 @@ class DispatcherService:
         engine: ChatEnginePort,
         planner_client: PlannerClient | None = None,
         context_loader: Callable[..., MessageDispatchContext | Any] | None = None,
-        debug_history_store: DispatcherDebugHistoryStore | None = None,
     ) -> None:
         self._engine = engine
         self._planner_client = planner_client or PlannerClient()
         self._context_loader = context_loader or self._load_context
-        self._debug_history_store = debug_history_store or dispatcher_debug_history_store
 
     async def handle_user_message(
         self,
@@ -233,32 +226,22 @@ class DispatcherService:
             "is_group": context.is_group,
         }
         latency_ms = int((perf_counter() - started) * 1000)
-        created_at = datetime.now(timezone.utc).isoformat()
-        history_payload = {
-            "type": "summary",
-            "conversation_id": context.conversation_id,
-            "message_id": trigger_message_id,
-            "selected_agents": selected_agent_ids,
-            "fallback": outcome.used_fallback,
-            "failure_type": outcome.failure_type,
-            "retry_count": outcome.retry_count,
-            "latency_ms": latency_ms,
-            "created_at": created_at,
-            "planner_output_preview": outcome.planner_output_preview,
-            "context": context_payload,
-            "plan": plan_payload,
-        }
-        self._debug_history_store.append(
-            tenant_id=get_current_tenant_id(),
-            conversation_id=context.conversation_id,
-            payload=history_payload,
-        )
 
         if settings.dispatcher_debug_feedback:
-            ws_payload = dict(history_payload)
-            ws_payload["type"] = "dispatcher_summary"
             await ws_manager.broadcast(
-                ws_payload,
+                {
+                    "type": "dispatcher_summary",
+                    "conversation_id": context.conversation_id,
+                    "message_id": trigger_message_id,
+                    "selected_agents": selected_agent_ids,
+                    "fallback": outcome.used_fallback,
+                    "failure_type": outcome.failure_type,
+                    "retry_count": outcome.retry_count,
+                    "latency_ms": latency_ms,
+                    "context": context_payload,
+                    "plan": plan_payload,
+                    "planner_output_preview": outcome.planner_output_preview,
+                },
                 conversation_id,
             )
 

@@ -134,6 +134,7 @@ class PlannerClient:
         last_output_preview: str | None = None
         max_attempts = 1 + max(0, self._retry_count)
         for attempt in range(max_attempts):
+            raw_output: str | None = None
             try:
                 raw_output = await self._completion_fn(
                     model=self._planner_model,
@@ -142,7 +143,7 @@ class PlannerClient:
                     messages=prompt_messages,
                     timeout_ms=self._timeout_ms,
                 )
-                last_output_preview = self._preview(raw_output)
+                raw_output_preview = self._preview_text(raw_output)
                 raw_json = self._extract_json(raw_output)
                 raw_plan = json.loads(raw_json)
                 plan = parse_dispatch_plan(
@@ -159,9 +160,11 @@ class PlannerClient:
                     used_fallback=False,
                     failure_type=None,
                     retry_count=attempt,
-                    planner_output_preview=last_output_preview,
+                    planner_output_preview=raw_output_preview,
                 )
             except Exception as exc:
+                if raw_output:
+                    last_output_preview = self._preview_text(raw_output)
                 last_failure_type = self._failure_type(exc)
                 event_name = (
                     "planner_primary_failed" if attempt == 0 else "planner_retry_failed"
@@ -199,11 +202,6 @@ class PlannerClient:
         )
 
     @staticmethod
-    def _preview(raw_output: str, limit: int = 240) -> str:
-        compact = " ".join(raw_output.split())
-        return compact[:limit]
-
-    @staticmethod
     def _failure_type(exc: Exception) -> str:
         exc_name = exc.__class__.__name__.lower()
         exc_text = str(exc).lower()
@@ -229,6 +227,13 @@ class PlannerClient:
         if start == -1 or end == -1 or start >= end:
             raise ValueError("planner output does not contain a json object")
         return text[start : end + 1]
+
+    @staticmethod
+    def _preview_text(text: str, max_len: int = 320) -> str:
+        compact = " ".join(text.strip().split())
+        if len(compact) <= max_len:
+            return compact
+        return compact[: max_len - 3] + "..."
 
     @staticmethod
     def _build_prompt(
@@ -283,3 +288,4 @@ class PlannerClient:
         if response.choices and response.choices[0].message.content:
             return str(response.choices[0].message.content)
         raise ValueError("planner response has empty content")
+

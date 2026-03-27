@@ -4,7 +4,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Message } from '../types';
 import { useAgentStore, type Agent } from '../stores/agentStore';
-import { getAgentPalette, getAvatarIcon } from '../lib/agentPalette';
+import { AvatarIcon, getAgentPalette } from '../lib/agentPalette';
 
 /** Strip <think>...</think> blocks from model output */
 function stripThinking(text: string): string {
@@ -189,8 +189,6 @@ interface AgentAvatarProps {
 
 const AgentAvatar: FC<AgentAvatarProps> = ({ agent, size = 40, className = '', onClick }) => {
   const palette = getAgentPalette(agent.id);
-  const AvatarIcon = getAvatarIcon(agent.avatar);
-
   return (
     <div
       onClick={onClick}
@@ -210,7 +208,7 @@ const AgentAvatar: FC<AgentAvatarProps> = ({ agent, size = 40, className = '', o
         transition: 'transform 0.2s ease',
       }}
     >
-      <AvatarIcon size={size * 0.5} style={{ color: palette.dot }} />
+      <AvatarIcon avatarLabel={agent.avatar} size={size * 0.5} style={{ color: palette.dot }} />
     </div>
   );
 };

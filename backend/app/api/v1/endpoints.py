@@ -14,9 +14,6 @@ from app.services.provider_service import provider_service
 from app.models.app_settings import AppSettings
 from app.core.audit import log_audit
 from app.core.tenant import get_current_tenant_id
-from app.modules.im.application.dispatcher_debug_history import (
-    dispatcher_debug_history_store,
-)
 
 router = APIRouter()
 
@@ -227,15 +224,3 @@ def get_messages(
     if not conversation:
         raise HTTPException(status_code=404, detail="Conversation not found")
     return conversation_service.get_messages(db, conversation_id, skip, limit)
-
-
-@router.get("/conversations/{conversation_id}/dispatcher-history")
-def get_dispatcher_debug_history(conversation_id: int, limit: int = 20):
-    safe_limit = max(1, min(limit, 50))
-    tenant_id = get_current_tenant_id()
-    items = dispatcher_debug_history_store.list_recent(
-        tenant_id=tenant_id,
-        conversation_id=conversation_id,
-        limit=safe_limit,
-    )
-    return {"items": items}

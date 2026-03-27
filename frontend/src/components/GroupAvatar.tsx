@@ -1,6 +1,6 @@
 import type { FC } from 'react';
 import type { Agent } from '../stores/agentStore';
-import { getAgentPalette, getAvatarIcon } from '../lib/agentPalette';
+import { AvatarIcon, getAgentPalette } from '../lib/agentPalette';
 
 interface GroupAvatarProps {
   agents: Agent[];
@@ -33,7 +33,6 @@ export const GroupAvatar: FC<GroupAvatarProps> = ({ agents, size = 40 }) => {
     >
       {agents.slice(0, 4).map((agent) => {
         const palette = getAgentPalette(agent.id);
-        const AvatarIcon = getAvatarIcon(agent.avatar);
         return (
           <div
             key={agent.id}
@@ -46,7 +45,7 @@ export const GroupAvatar: FC<GroupAvatarProps> = ({ agents, size = 40 }) => {
               justifyContent: 'center',
             }}
           >
-            <AvatarIcon size={sizeValue * 0.22} style={{ color: palette.dot }} />
+            <AvatarIcon avatarLabel={agent.avatar} size={sizeValue * 0.22} style={{ color: palette.dot }} />
           </div>
         );
       })}

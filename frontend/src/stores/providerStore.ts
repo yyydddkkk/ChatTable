@@ -15,16 +15,26 @@ export interface AppSettings {
   optimizer_model: string;
 }
 
+export interface ProviderValidationResult {
+  valid: boolean;
+  message: string;
+  latency_ms: number | null;
+  models: string[];
+  error: string | null;
+}
+
 interface ProviderStore {
   providers: Provider[];
   settings: AppSettings;
   isLoading: boolean;
   error: string | null;
+  validatingProviders: Set<number>;
 
   fetchProviders: () => Promise<void>;
   createProvider: (data: { name: string; api_key: string; api_base: string }) => Promise<Provider | null>;
   updateProvider: (id: number, data: { name?: string; api_key?: string; api_base?: string }) => Promise<Provider | null>;
   deleteProvider: (id: number) => Promise<boolean>;
+  validateProvider: (id: number) => Promise<ProviderValidationResult>;
   fetchSettings: () => Promise<void>;
   updateSettings: (data: Partial<AppSettings>) => Promise<void>;
 }
@@ -34,6 +44,7 @@ export const useProviderStore = create<ProviderStore>((set) => ({
   settings: { optimizer_provider_id: null, optimizer_model: 'qwen-plus' },
   isLoading: false,
   error: null,
+  validatingProviders: new Set(),
 
   fetchProviders: async () => {
     set({ isLoading: true, error: null });
@@ -99,6 +110,35 @@ export const useProviderStore = create<ProviderStore>((set) => ({
     } catch (e) {
       set({ error: (e as Error).message, isLoading: false });
       return false;
+    }
+  },
+
+  validateProvider: async (id) => {
+    set((s) => ({ validatingProviders: new Set(s.validatingProviders).add(id) }));
+    try {
+      const res = await apiFetch(`${API_ENDPOINTS.providers}/${id}/validate`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Validation failed');
+      }
+      const result = await res.json();
+      return result;
+    } catch (e) {
+      return {
+        valid: false,
+        message: (e as Error).message,
+        latency_ms: null,
+        models: [],
+        error: (e as Error).message,
+      };
+    } finally {
+      set((s) => {
+        const newSet = new Set(s.validatingProviders);
+        newSet.delete(id);
+        return { validatingProviders: newSet };
+      });
     }
   },
 

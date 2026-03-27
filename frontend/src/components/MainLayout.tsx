@@ -1,10 +1,10 @@
 import type { FC, ReactNode } from 'react';
-import { MessageCircle, Users, Settings } from 'lucide-react';
+import { MessageCircle, Users, Settings, Bug } from 'lucide-react';
 
 interface MainLayoutProps {
   children: ReactNode;
-  currentView: 'chat' | 'contacts' | 'settings';
-  onViewChange: (view: 'chat' | 'contacts' | 'settings') => void;
+  currentView: 'chat' | 'contacts' | 'settings' | 'debug';
+  onViewChange: (view: 'chat' | 'contacts' | 'settings' | 'debug') => void;
 }
 
 export const MainLayout: FC<MainLayoutProps> = ({ children, currentView, onViewChange }) => {
@@ -48,6 +48,12 @@ export const MainLayout: FC<MainLayoutProps> = ({ children, currentView, onViewC
 
         <div className="w-8 h-px my-3" style={{ background: 'rgba(0,0,0,0.06)' }} />
         
+        <NavButton
+          active={currentView === 'debug'}
+          onClick={() => onViewChange('debug')}
+          icon={<Bug size={18} />}
+          label="调试"
+        />
         <NavButton
           active={currentView === 'settings'}
           onClick={() => onViewChange('settings')}

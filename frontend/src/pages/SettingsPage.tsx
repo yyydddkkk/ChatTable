@@ -3,7 +3,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useProviderStore, type Provider } from '../stores/providerStore';
 import { useTenantStore } from '../stores/tenantStore';
 import { MODEL_OPTIONS } from '../config/models';
-import { Plus, Trash2, Edit2, Save, X, Loader2, Server, Wand2 } from 'lucide-react';
+import { Plus, Trash2, Edit2, Save, X, Loader2, Server, Wand2, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
 import Dropdown from '../components/Dropdown';
 
 const MODEL_DROPDOWN_OPTIONS = MODEL_OPTIONS.flatMap(group =>
@@ -16,8 +16,8 @@ const MODEL_DROPDOWN_OPTIONS = MODEL_OPTIONS.flatMap(group =>
 export default function SettingsPage() {
   const logout = useAuthStore((state) => state.logout);
   const {
-    providers, settings, isLoading,
-    fetchProviders, createProvider, updateProvider, deleteProvider,
+    providers, settings, isLoading, validatingProviders,
+    fetchProviders, createProvider, updateProvider, deleteProvider, validateProvider,
     fetchSettings, updateSettings,
   } = useProviderStore();
   const tenantId = useTenantStore((state) => state.tenantId);
@@ -29,6 +29,7 @@ export default function SettingsPage() {
   const [editData, setEditData] = useState({ name: '', api_key: '', api_base: '' });
   const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
   const [tenantInput, setTenantInput] = useState(tenantId);
+  const [validationResults, setValidationResults] = useState<Record<number, { valid: boolean; message: string; latency_ms: number | null }>>({});
 
   useEffect(() => {
     fetchProviders();
@@ -67,6 +68,11 @@ export default function SettingsPage() {
   const handleDelete = async (id: number) => {
     await deleteProvider(id);
     setDeleteConfirmId(null);
+  };
+
+  const handleValidate = async (id: number) => {
+    const result = await validateProvider(id);
+    setValidationResults(prev => ({ ...prev, [id]: result }));
   };
 
   const providerDropdownOptions = providers.map(p => ({
@@ -236,8 +242,36 @@ export default function SettingsPage() {
                       <div className="font-medium text-text">{provider.name}</div>
                       <div className="text-sm text-text-muted truncate">{provider.api_base}</div>
                       <div className="text-xs text-text-muted mt-0.5">密钥: ••••••••</div>
+                      {validationResults[provider.id] && (
+                        <div className={`text-xs mt-1 ${validationResults[provider.id].valid ? 'text-green-600' : 'text-red-500'}`}>
+                          {validationResults[provider.id].valid ? (
+                            <span className="flex items-center gap-1">
+                              <CheckCircle size={12} />
+                              连接正常 {validationResults[provider.id].latency_ms ? `(${validationResults[provider.id].latency_ms}ms)` : ''}
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1">
+                              <AlertCircle size={12} />
+                              {validationResults[provider.id].message}
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-1 ml-3 shrink-0">
+                      <button
+                        onClick={() => handleValidate(provider.id)}
+                        disabled={validatingProviders.has(provider.id)}
+                        className="p-2 rounded-lg hover:bg-background transition disabled:opacity-50"
+                        aria-label="校验连通性"
+                        title="校验连通性"
+                      >
+                        {validatingProviders.has(provider.id) ? (
+                          <Loader2 size={15} className="text-text-muted animate-spin" />
+                        ) : (
+                          <RefreshCw size={15} className="text-text-muted" />
+                        )}
+                      </button>
                       <button
                         onClick={() => handleEdit(provider)}
                         className="p-2 rounded-lg hover:bg-background transition"

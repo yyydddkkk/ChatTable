@@ -5,7 +5,7 @@ import { Plus, Search, Users, Sparkles, Settings } from 'lucide-react';
 import CreateAgentModal from '../components/CreateAgentModal';
 import CreateGroupModal from '../components/CreateGroupModal';
 import AgentDetailSidebar from '../components/AgentDetailSidebar';
-import { getAgentPalette, getAvatarIcon } from '../lib/agentPalette';
+import { AvatarIcon, getAgentPalette } from '../lib/agentPalette';
 
 interface ContactsPageProps {
   onStartChat: (agentId: number) => void;
@@ -220,10 +220,7 @@ function AgentCard({ agent, palette, onClick, onEdit }: AgentCardProps) {
             boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
           }}
         >
-          {(() => {
-            const AvatarIcon = getAvatarIcon(agent.avatar);
-            return <AvatarIcon size={28} style={{ color: palette.dot }} />;
-          })()}
+          <AvatarIcon avatarLabel={agent.avatar} size={28} style={{ color: palette.dot }} />
         </div>
         <span
           className="text-[10px] font-bold text-[--color-text-subtle] bg-[--color-background] rounded-lg py-1.5 px-3 tracking-wider"

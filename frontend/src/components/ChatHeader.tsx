@@ -2,7 +2,7 @@ import type { FC } from 'react';
 import { MoreHorizontal, Zap } from 'lucide-react';
 import type { Agent } from '../stores/agentStore';
 import { GroupAvatar } from './GroupAvatar';
-import { getAgentPalette, getAvatarIcon } from '../lib/agentPalette';
+import { AvatarIcon, getAgentPalette } from '../lib/agentPalette';
 
 interface ChatHeaderProps {
   agent?: Agent | null;
@@ -24,9 +24,7 @@ export const ChatHeader: FC<ChatHeaderProps> = ({ agent, agents = [], isGroup = 
       <div className="flex items-center gap-3">
         {isGroup ? (
           <GroupAvatar agents={agents} size={38} />
-        ) : agent && (() => {
-          const AvatarIcon = getAvatarIcon(agent.avatar);
-          return (
+        ) : agent && (
           <div
             style={{
               width: 38,
@@ -41,10 +39,9 @@ export const ChatHeader: FC<ChatHeaderProps> = ({ agent, agents = [], isGroup = 
               boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
             }}
           >
-            <AvatarIcon size={20} style={{ color: getAgentPalette(agent.id).dot }} />
+            <AvatarIcon avatarLabel={agent.avatar} size={20} style={{ color: getAgentPalette(agent.id).dot }} />
           </div>
-          );
-        })()}
+        )}
         <div>
           <div className="text-[16px] font-bold text-[--color-text]">
             {isGroup ? agents.map(a => a.name).join(', ') : agent?.name}

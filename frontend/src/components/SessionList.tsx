@@ -2,7 +2,7 @@ import type { FC } from 'react';
 import type { Agent } from '../stores/agentStore';
 import type { Conversation } from '../types';
 import { Search, MessageCircle } from 'lucide-react';
-import { getAgentPalette, getAvatarIcon } from '../lib/agentPalette';
+import { AvatarIcon, getAgentPalette } from '../lib/agentPalette';
 import { GroupAvatar } from './GroupAvatar';
 
 interface SessionListProps {
@@ -187,8 +187,6 @@ interface AgentAvatarComponentProps {
 const AgentAvatarComponent: FC<AgentAvatarComponentProps> = ({ agent, size = 40 }) => {
   if (!agent) return null;
   const palette = getAgentPalette(agent.id);
-  const AvatarIcon = getAvatarIcon(agent.avatar);
-
   return (
     <div
       style={{
@@ -204,7 +202,7 @@ const AgentAvatarComponent: FC<AgentAvatarComponentProps> = ({ agent, size = 40 
         justifyContent: 'center',
       }}
     >
-      <AvatarIcon size={size * 0.5} style={{ color: palette.dot }} />
+      <AvatarIcon avatarLabel={agent.avatar} size={size * 0.5} style={{ color: palette.dot }} />
     </div>
   );
 };
