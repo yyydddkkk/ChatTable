@@ -1,3 +1,4 @@
+﻿import { createElement } from 'react';
 import type { FC } from 'react';
 import type { Agent } from '../stores/agentStore';
 import { getAgentPalette, getAvatarIcon } from '../lib/agentPalette';
@@ -15,25 +16,27 @@ const sizeMap = {
 
 export const GroupAvatar: FC<GroupAvatarProps> = ({ agents, size = 40 }) => {
   const sizeValue = typeof size === 'number' ? size : sizeMap[size];
-  
+
   return (
     <div
       style={{
         width: sizeValue,
         height: sizeValue,
         borderRadius: sizeValue * 0.28,
-        background: '#EBE8E2',
+        background: 'rgba(255,255,255,0.08)',
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
         gap: 1.5,
         padding: 3,
         flexShrink: 0,
         overflow: 'hidden',
+        border: '1px solid rgba(255,255,255,0.08)',
+        boxShadow: '0 10px 24px rgba(8, 11, 26, 0.18)',
       }}
     >
       {agents.slice(0, 4).map((agent) => {
         const palette = getAgentPalette(agent.id);
-        const AvatarIcon = getAvatarIcon(agent.avatar);
+        const avatarIcon = getAvatarIcon(agent.avatar);
         return (
           <div
             key={agent.id}
@@ -46,7 +49,10 @@ export const GroupAvatar: FC<GroupAvatarProps> = ({ agents, size = 40 }) => {
               justifyContent: 'center',
             }}
           >
-            <AvatarIcon size={sizeValue * 0.22} style={{ color: palette.dot }} />
+            {createElement(avatarIcon, {
+              size: sizeValue * 0.22,
+              style: { color: palette.dot },
+            })}
           </div>
         );
       })}

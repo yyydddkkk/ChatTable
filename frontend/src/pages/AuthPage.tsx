@@ -1,12 +1,5 @@
-import { useMemo, useState } from 'react';
-import {
-  ArrowRight,
-  Building2,
-  KeyRound,
-  Loader2,
-  Lock,
-  UserRound,
-} from 'lucide-react';
+﻿import { useMemo, useState } from 'react';
+import { ArrowRight, Building2, Lock, Loader2, UserRound } from 'lucide-react';
 
 import { useAuthStore } from '../stores/authStore';
 
@@ -20,10 +13,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
-  const submitLabel = useMemo(
-    () => (mode === 'login' ? 'Sign In' : 'Create Account'),
-    [mode],
-  );
+  const submitLabel = useMemo(() => (mode === 'login' ? '进入 Pluto' : '创建账号'), [mode]);
 
   const switchMode = (nextMode: AuthMode) => {
     setMode(nextMode);
@@ -37,167 +27,56 @@ export default function AuthPage() {
     clearError();
 
     if (mode === 'login') {
-      await login({
-        tenant_id: tenantId,
-        username,
-        password,
-      });
+      await login({ tenant_id: tenantId, username, password });
       return;
     }
 
-    const success = await register({
-      tenant_id: tenantId,
-      username,
-      password,
-    });
+    const success = await register({ tenant_id: tenantId, username, password });
     if (success) {
-      setSuccessMessage('Registration succeeded. You can sign in now.');
+      setSuccessMessage('注册成功，现在可以直接登录 Pluto。');
       setMode('login');
     }
   };
 
   return (
-    <div
-      className="min-h-screen w-full flex items-center justify-center px-4 py-10"
-      style={{
-        background:
-          'radial-gradient(1200px 700px at 8% 8%, rgba(234,120,80,0.14), transparent 55%), radial-gradient(1000px 600px at 92% 92%, rgba(90,142,232,0.12), transparent 55%), var(--color-background)',
-      }}
-    >
-      <div
-        className="w-full max-w-5xl rounded-3xl overflow-hidden border"
-        style={{
-          background: 'var(--color-surface)',
-          borderColor: 'var(--color-border)',
-          boxShadow: '0 22px 50px rgba(30, 25, 20, 0.12)',
-        }}
-      >
-        <div className="grid grid-cols-1 md:grid-cols-[1.08fr_1fr]">
-          <section
-            className="relative p-8 md:p-10"
-            style={{
-              background:
-                'linear-gradient(160deg, #FFF8F4 0%, #FFEFE8 45%, #F7F2ED 100%)',
-            }}
-          >
-            <div className="absolute -top-10 -right-16 w-56 h-56 rounded-full bg-[--color-primary]/15 blur-2xl" />
-            <div className="absolute -bottom-12 -left-10 w-52 h-52 rounded-full bg-[--color-secondary]/15 blur-2xl" />
-            <div className="absolute right-6 top-8 opacity-25 pointer-events-none hidden md:block">
-              <PixelRobot size={8} />
+    <div className="flex min-h-screen items-center justify-center px-4 py-10">
+      <div className="w-full max-w-4xl overflow-hidden rounded-[32px] pluto-modal-shell">
+        <div className="grid md:grid-cols-[0.95fr_1.05fr]">
+          <section className="border-b border-[--color-border-light] px-8 py-10 md:border-b-0 md:border-r">
+            <div className="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium uppercase tracking-[0.18em] text-[--color-primary] pluto-inline-tag">
+              Pluto
             </div>
-            <div className="absolute left-6 bottom-8 opacity-15 pointer-events-none hidden lg:block">
-              <PixelRobot size={6} mirrored />
-            </div>
-
-            <div className="relative z-10">
-              <div
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs tracking-wide uppercase"
-                style={{
-                  color: 'var(--color-primary)',
-                  background: 'var(--color-primary-light)',
-                  border: '1px solid rgba(234,120,80,0.25)',
-                }}
-              >
-                <KeyRound size={14} />
-                ChatTable Workspace
-              </div>
-
-              <h1
-                className="mt-6 text-3xl md:text-4xl font-semibold leading-tight"
-                style={{ color: 'var(--color-text)' }}
-              >
-                Tenant-aware sign in for team chat control
-              </h1>
-              <p
-                className="mt-4 leading-7 text-sm md:text-base max-w-md"
-                style={{ color: 'var(--color-text-muted)' }}
-              >
-                Use your tenant, username, and password to access isolated
-                agents, conversations, and settings.
-              </p>
-
-              <div className="mt-10 space-y-3 text-sm">
-                <FeatureRow text="Multi-tenant isolation with X-Tenant-Id" />
-                <FeatureRow text="JWT authorization for API calls" />
-                <FeatureRow text="Route guard and 401 redirect protection" />
-              </div>
-            </div>
+            <h1 className="mt-6 text-4xl font-semibold leading-tight text-[--color-text] md:text-5xl">
+              进入 Pluto
+            </h1>
+            <p className="mt-4 text-base leading-8 text-[--color-text-muted]">
+              一个真人，一整个 Agent 宇宙。
+            </p>
           </section>
 
-          <section className="p-8 md:p-10">
-            <div
-              className="flex items-center gap-2 rounded-xl p-1 mb-6"
-              style={{ background: 'var(--color-surface-elevated)' }}
-            >
-              <AuthTab
-                active={mode === 'login'}
-                label="Login"
-                onClick={() => switchMode('login')}
-              />
-              <AuthTab
-                active={mode === 'register'}
-                label="Register"
-                onClick={() => switchMode('register')}
-              />
+          <section className="px-8 py-10">
+            <div className="pluto-ios-group flex items-center gap-2 p-1.5">
+              <AuthTab active={mode === 'login'} label="登录" onClick={() => switchMode('login')} />
+              <AuthTab active={mode === 'register'} label="注册" onClick={() => switchMode('register')} />
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <LabeledInput
-                autoComplete="organization"
-                icon={Building2}
-                label="Tenant ID"
-                onChange={setTenantId}
-                placeholder="team-a"
-                value={tenantId}
-              />
-              <LabeledInput
-                autoComplete="username"
-                icon={UserRound}
-                label="Username"
-                onChange={setUsername}
-                placeholder="alice"
-                value={username}
-              />
-              <LabeledInput
-                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                icon={Lock}
-                label="Password"
-                onChange={setPassword}
-                placeholder="At least 6 characters"
-                type="password"
-                value={password}
-              />
+            <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+              <LabeledInput autoComplete="organization" icon={Building2} label="工作区" onChange={setTenantId} placeholder="local / team-a" value={tenantId} />
+              <LabeledInput autoComplete="username" icon={UserRound} label="用户名" onChange={setUsername} placeholder="alice" value={username} />
+              <LabeledInput autoComplete={mode === 'login' ? 'current-password' : 'new-password'} icon={Lock} label="密码" onChange={setPassword} placeholder="至少 6 位" type="password" value={password} />
 
-              {error && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-100 px-3 py-2 rounded-lg">
-                  {error}
-                </p>
-              )}
-              {successMessage && (
-                <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 px-3 py-2 rounded-lg">
-                  {successMessage}
-                </p>
-              )}
+              {error && <p className="rounded-2xl border border-rose-400/15 bg-rose-500/10 px-4 py-3 text-sm text-rose-500">{error}</p>}
+              {successMessage && <p className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-600">{successMessage}</p>}
 
               <button
-                className="w-full min-h-[46px] rounded-xl text-white font-medium transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60"
-                disabled={
-                  isLoading ||
-                  !tenantId.trim() ||
-                  !username.trim() ||
-                  !password.trim()
-                }
-                style={{
-                  background:
-                    'linear-gradient(135deg, #EA7850 0%, #E86848 100%)',
-                  boxShadow: '0 8px 20px rgba(234,120,80,0.32)',
-                }}
                 type="submit"
+                disabled={isLoading || !tenantId.trim() || !username.trim() || !password.trim()}
+                className="pluto-modal-primary inline-flex min-h-[48px] w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-medium disabled:opacity-60"
               >
                 {isLoading ? (
                   <>
                     <Loader2 className="animate-spin" size={16} />
-                    Working...
+                    正在进入…
                   </>
                 ) : (
                   <>
@@ -214,82 +93,14 @@ export default function AuthPage() {
   );
 }
 
-const ROBOT_MATRIX = [
-  '001111100',
-  '011111110',
-  '111001111',
-  '110000111',
-  '111001111',
-  '011111110',
-  '001111100',
-  '001010100',
-  '011000110',
-  '110000011',
-  '110000011',
-  '010000010',
-];
-
-function PixelRobot({ mirrored = false, size = 8 }: { mirrored?: boolean; size?: number }) {
-  return (
-    <div
-      className="grid"
-      style={{
-        gridTemplateColumns: `repeat(${ROBOT_MATRIX[0].length}, ${size}px)`,
-        gap: '1px',
-        transform: mirrored ? 'scaleX(-1)' : 'none',
-      }}
-      aria-hidden="true"
-    >
-      {ROBOT_MATRIX.flatMap((row, rowIndex) =>
-        row.split('').map((cell, colIndex) => (
-          <span
-            key={`${rowIndex}-${colIndex}`}
-            style={{
-              width: `${size}px`,
-              height: `${size}px`,
-              borderRadius: '1px',
-              background:
-                cell === '1'
-                  ? 'linear-gradient(135deg, rgba(234,120,80,0.75) 0%, rgba(232,104,72,0.75) 100%)'
-                  : 'rgba(255,255,255,0)',
-              boxShadow:
-                cell === '1' ? 'inset 0 1px 0 rgba(255,255,255,0.35)' : 'none',
-            }}
-          />
-        )),
-      )}
-    </div>
-  );
-}
-
-function FeatureRow({ text }: { text: string }) {
-  return (
-    <div className="flex items-start gap-2" style={{ color: 'var(--color-text)' }}>
-      <span className="mt-1 inline-block w-2 h-2 rounded-full bg-[--color-primary]" />
-      <p>{text}</p>
-    </div>
-  );
-}
-
-function AuthTab({
-  active,
-  label,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  onClick: () => void;
-}) {
+function AuthTab({ active, label, onClick }: { active: boolean; label: string; onClick: () => void }) {
   return (
     <button
-      className="flex-1 min-h-[42px] rounded-lg text-sm font-medium transition-all duration-200"
-      onClick={onClick}
-      style={{
-        background: active ? 'var(--color-surface)' : 'transparent',
-        color: active ? 'var(--color-text)' : 'var(--color-text-muted)',
-        boxShadow: active ? '0 2px 10px rgba(0,0,0,0.08)' : 'none',
-      }}
       type="button"
+      onClick={onClick}
+      className={`flex-1 rounded-2xl px-4 py-3 text-sm font-medium transition ${
+        active ? 'pluto-ios-button pluto-ios-button--primary' : 'text-[--color-text-muted] hover:text-[--color-text]'
+      }`}
     >
       {label}
     </button>
@@ -315,24 +126,16 @@ function LabeledInput({
 }) {
   return (
     <label className="block">
-      <span className="text-sm font-medium text-[--color-text]">{label}</span>
-      <div className="mt-1.5 relative">
-        <Icon
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-[--color-text-muted]"
-          size={17}
-        />
+      <span className="mb-2 block text-sm font-medium text-[--color-text]">{label}</span>
+      <div className="relative">
+        <Icon className="absolute left-4 top-1/2 -translate-y-1/2 text-[--color-text-subtle]" size={17} />
         <input
           autoComplete={autoComplete}
-          className="w-full min-h-[44px] rounded-xl pl-10 pr-3 outline-none transition-all"
           onChange={(event) => onChange(event.target.value)}
           placeholder={placeholder}
           type={type}
           value={value}
-          style={{
-            border: '1px solid var(--color-border-light)',
-            background: 'var(--color-surface)',
-            color: 'var(--color-text)',
-          }}
+          className="pluto-modal-input h-12 w-full rounded-2xl pl-11 pr-4 text-sm outline-none"
         />
       </div>
     </label>

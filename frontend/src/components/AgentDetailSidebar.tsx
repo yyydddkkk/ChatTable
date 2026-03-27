@@ -1,11 +1,12 @@
-import { useState } from 'react';
-import { useAgentStore, type Agent } from '../stores/agentStore';
-import { useProviderStore } from '../stores/providerStore';
-import { X, Edit2, Trash2, Power, Loader2, Save, Wand2 } from 'lucide-react';
-import { getAvatarIcon } from '../lib/agentPalette';
+import { createElement, useMemo, useState } from 'react';
+import { Edit2, Loader2, Power, Save, Trash2, Wand2, X } from 'lucide-react';
+
 import { API_ENDPOINTS } from '../config/api';
 import { MODEL_OPTIONS, getProviderNameForModel } from '../config/models';
+import { getAvatarIcon } from '../lib/agentPalette';
 import { apiFetch } from '../services/http';
+import { useAgentStore, type Agent } from '../stores/agentStore';
+import { useProviderStore } from '../stores/providerStore';
 import Dropdown from './Dropdown';
 
 interface AgentDetailSidebarProps {
@@ -13,26 +14,58 @@ interface AgentDetailSidebarProps {
   onClose: () => void;
 }
 
-const LENGTH_OPTIONS = [
-  { value: 1, label: '1 - 极短' },
-  { value: 2, label: '2 - 简短' },
-  { value: 3, label: '3 - 适中' },
-  { value: 4, label: '4 - 较长' },
-  { value: 5, label: '5 - 详细' },
+const lengthOptions = [
+  { value: 1, label: '1 - ??' },
+  { value: 2, label: '2 - ??' },
+  { value: 3, label: '3 - ??' },
+  { value: 4, label: '4 - ??' },
+  { value: 5, label: '5 - ??' },
 ];
 
-const MODEL_DROPDOWN_OPTIONS = MODEL_OPTIONS.flatMap(group =>
-  group.models.map(model => ({
+const modelDropdownOptions = MODEL_OPTIONS.flatMap((group) =>
+  group.models.map((model) => ({
     value: model.value,
-    label: `${model.label} (${group.group})`
-  }))
+    label: `${model.label} (${group.group})`,
+  })),
 );
+
+function parseList(raw?: string): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is string => typeof item === 'string')
+      : [];
+  } catch {
+    return raw.split(',').map((item) => item.trim()).filter(Boolean);
+  }
+}
+
+function StatBar({ label, value, widthClass }: { label: string; value: string; widthClass: string }) {
+  return (
+    <div className="rounded-2xl pluto-modal-section p-3">
+      <div className="flex items-center justify-between text-xs text-[--color-text-subtle]">
+        <span>{label}</span>
+        <span>{value}</span>
+      </div>
+      <div className="mt-2 h-2 rounded-full bg-[color-mix(in_srgb,var(--color-text)_10%,transparent)]">
+        <div className={`h-2 rounded-full bg-[--color-primary] ${widthClass}`} />
+      </div>
+    </div>
+  );
+}
+
+function SectionTitle({ title }: { title: string }) {
+  return <p className="pluto-agent-section-title mb-3">{title}</p>;
+}
 
 export default function AgentDetailSidebar({ agent, onClose }: AgentDetailSidebarProps) {
   const { updateAgent, deleteAgent, toggleActive, isLoading } = useAgentStore();
   const { providers } = useProviderStore();
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [optimizeError, setOptimizeError] = useState('');
 
   const [formData, setFormData] = useState({
     name: agent.name,
@@ -49,430 +82,313 @@ export default function AgentDetailSidebar({ agent, onClose }: AgentDetailSideba
     default_length: agent.default_length,
   });
 
-  const [isOptimizing, setIsOptimizing] = useState(false);
-  const [optimizeError, setOptimizeError] = useState('');
-
-  // Resolve provider from model
-  const providerName = getProviderNameForModel(agent.model);
+  const providerName = getProviderNameForModel(formData.model);
   const matchedProvider = providerName
-    ? providers.find(p => p.name === providerName)
+    ? providers.find((provider) => provider.name === providerName)
     : null;
+  const avatarIcon = getAvatarIcon(formData.avatar);
+  const skillList = useMemo(
+    () => parseList(isEditing ? formData.skills : agent.skills),
+    [agent.skills, formData.skills, isEditing],
+  );
+  const tagList = useMemo(
+    () => parseList(isEditing ? formData.tags : agent.tags),
+    [agent.tags, formData.tags, isEditing],
+  );
 
   const handleOptimizePrompt = async () => {
     if (!formData.system_prompt.trim() || isOptimizing) return;
     setIsOptimizing(true);
     setOptimizeError('');
     try {
-      const res = await apiFetch(API_ENDPOINTS.optimizePrompt, {
+      const response = await apiFetch(API_ENDPOINTS.optimizePrompt, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt: formData.system_prompt }),
       });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || '优化失败');
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.detail || '????');
       }
-      const data = await res.json();
-      setFormData((prev) => ({ ...prev, system_prompt: data.optimized_prompt }));
-    } catch (e) {
-      setOptimizeError(e instanceof Error ? e.message : '优化失败，请检查后端配置');
+      const data = await response.json();
+      setFormData((previous) => ({ ...previous, system_prompt: data.optimized_prompt }));
+    } catch (error) {
+      setOptimizeError(error instanceof Error ? error.message : '????');
     } finally {
       setIsOptimizing(false);
     }
   };
 
   const handleSave = async () => {
-    // Auto-resolve provider from new model
-    const newProviderName = getProviderNameForModel(formData.model);
-    const newProvider = newProviderName
-      ? providers.find(p => p.name === newProviderName)
+    const selectedProviderName = getProviderNameForModel(formData.model);
+    const selectedProvider = selectedProviderName
+      ? providers.find((provider) => provider.name === selectedProviderName)
       : null;
-
-    const updateData = {
+    const result = await updateAgent(agent.id, {
       ...formData,
-      provider_id: newProvider?.id,
-    };
-    const result = await updateAgent(agent.id, updateData);
-    if (result) {
-      setIsEditing(false);
-    }
+      provider_id: selectedProvider?.id,
+    });
+    if (result) setIsEditing(false);
   };
 
   const handleDelete = async () => {
     const success = await deleteAgent(agent.id);
-    if (success) {
-      onClose();
-    }
-  };
-
-  const handleToggleActive = async () => {
-    await toggleActive(agent.id);
-  };
-
-  const getAvatarDisplay = () => {
-    const AvatarIcon = getAvatarIcon(formData.avatar);
-    return <AvatarIcon size={40} className="text-primary" />;
+    if (success) onClose();
   };
 
   return (
-    <div className="w-80 bg-surface flex flex-col" style={{ boxShadow: '-1px 0 8px rgba(0,0,0,0.04)' }}>
-      {/* Header */}
-      <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-        <h2 className="text-lg font-semibold text-text">Agent 详情</h2>
-        <button onClick={onClose} className="p-2 rounded hover:bg-background transition" aria-label="Close sidebar">
-          <X size={20} className="text-text-muted" />
+    <div className="pluto-agent-shell flex h-full w-[340px] flex-col px-4 py-4 text-[--color-text]">
+      <div className="pluto-agent-header flex items-center justify-between px-4 py-4">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.12em] text-[--color-text-subtle]">
+            Agent ??
+          </p>
+          <h2 className="mt-1 text-lg font-semibold text-[--color-text]">{agent.name}</h2>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          className="pluto-modal-secondary flex h-10 w-10 items-center justify-center rounded-2xl"
+          aria-label="?? Agent ??"
+        >
+          <X size={16} />
         </button>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto p-4">
-        {/* Avatar & Name */}
-        <div className="flex flex-col items-center mb-6">
-          <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-3">
-            {getAvatarDisplay()}
-          </div>
-          {isEditing ? (
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
-              className="text-center px-3 py-1 rounded-lg focus:outline-none"
-              style={{ border: '1px solid rgba(0,0,0,0.06)' }}
-            />
-          ) : (
-            <h3 className="text-xl font-semibold text-text">{agent.name}</h3>
-          )}
-          <span className={`text-sm mt-1 ${agent.is_active ? 'text-green-600' : 'text-gray-500'}`}>
-            {agent.is_active ? '已启用' : '已停用'}
-          </span>
-        </div>
-
-        {/* Description */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-text-muted mb-1">简介</label>
-          {isEditing ? (
-            <textarea
-              value={formData.description}
-              onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-              className="w-full px-3 py-2 rounded-lg focus:outline-none resize-none"
-              style={{ border: '1px solid rgba(0,0,0,0.06)' }}
-              rows={2}
-            />
-          ) : (
-            <p className="text-sm text-text">{agent.description || '暂无简介'}</p>
-          )}
-        </div>
-
-        {/* Model */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-text-muted mb-1">模型</label>
-          {isEditing ? (
-            <Dropdown
-              options={MODEL_DROPDOWN_OPTIONS}
-              value={formData.model}
-              onChange={(val) => setFormData((prev) => ({ ...prev, model: val as string }))}
-              placeholder="选择模型"
-            />
-          ) : (
-            <p className="text-sm text-text">{agent.model}</p>
-          )}
-        </div>
-
-        {/* Provider (read-only) */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-text-muted mb-1">服务商</label>
-          <p className="text-sm text-text bg-background p-2 rounded">
-            {matchedProvider ? matchedProvider.name : (
-              <span className="text-amber-600">未配置 {providerName || ''}</span>
-            )}
-          </p>
-        </div>
-
-        {/* System Prompt */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-1">
-            <label className="block text-sm font-medium text-text-muted">系统提示词</label>
-            {isEditing && (
-              <button
-                type="button"
-                onClick={handleOptimizePrompt}
-                disabled={isOptimizing || !formData.system_prompt.trim()}
-                className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg transition-all duration-200 disabled:opacity-40"
-                style={{
-                  background: 'rgba(234,120,80,0.1)',
-                  color: 'var(--color-primary)',
-                  border: 'none',
-                  cursor: isOptimizing || !formData.system_prompt.trim() ? 'not-allowed' : 'pointer',
-                }}
-              >
-                {isOptimizing ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
-                AI 优化
-              </button>
-            )}
-          </div>
-          {isEditing ? (
-            <textarea
-              value={formData.system_prompt}
-              onChange={(e) => setFormData((prev) => ({ ...prev, system_prompt: e.target.value }))}
-              className="w-full px-3 py-2 rounded-lg focus:outline-none resize-none"
-              style={{ border: '1px solid rgba(0,0,0,0.06)' }}
-              rows={3}
-            />
-          ) : (
-            <p className="text-sm text-text bg-background p-2 rounded">{agent.system_prompt}</p>
-          )}
-          {optimizeError && <p className="text-red-500 text-xs mt-1">{optimizeError}</p>}
-        </div>
-
-        {/* Personality */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-text-muted mb-1">性格特征</label>
-          {isEditing ? (
-            <textarea
-              value={formData.personality}
-              onChange={(e) => setFormData((prev) => ({ ...prev, personality: e.target.value }))}
-              className="w-full px-3 py-2 rounded-lg focus:outline-none resize-none"
-              style={{ border: '1px solid rgba(0,0,0,0.06)' }}
-              rows={2}
-              placeholder="如：开朗、幽默、善于倾听"
-            />
-          ) : (
-            agent.personality && <p className="text-sm text-text bg-background p-2 rounded">{agent.personality}</p>
-          )}
-        </div>
-
-        {/* Background */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-text-muted mb-1">背景故事</label>
-          {isEditing ? (
-            <textarea
-              value={formData.background}
-              onChange={(e) => setFormData((prev) => ({ ...prev, background: e.target.value }))}
-              className="w-full px-3 py-2 rounded-lg focus:outline-none resize-none"
-              style={{ border: '1px solid rgba(0,0,0,0.06)' }}
-              rows={2}
-              placeholder="角色的背景经历"
-            />
-          ) : (
-            agent.background && <p className="text-sm text-text bg-background p-2 rounded">{agent.background}</p>
-          )}
-        </div>
-
-        {/* Skills */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-text-muted mb-1">技能</label>
-          {isEditing ? (
-            <input
-              type="text"
-              value={formData.skills}
-              onChange={(e) => setFormData((prev) => ({ ...prev, skills: e.target.value }))}
-              className="w-full px-3 py-2 rounded-lg focus:outline-none"
-              style={{ border: '1px solid rgba(0,0,0,0.06)' }}
-              placeholder='JSON 数组'
-            />
-          ) : (
-            agent.skills && (
-              <div className="flex flex-wrap gap-1">
-                {(() => { try { return JSON.parse(agent.skills); } catch { return []; } })().map((s: string, i: number) => (
-                  <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">{s}</span>
-                ))}
-              </div>
-            )
-          )}
-        </div>
-
-        {/* Tags */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-text-muted mb-1">标签</label>
-          {isEditing ? (
-            <input
-              type="text"
-              value={formData.tags}
-              onChange={(e) => setFormData((prev) => ({ ...prev, tags: e.target.value }))}
-              className="w-full px-3 py-2 rounded-lg focus:outline-none"
-              style={{ border: '1px solid rgba(0,0,0,0.06)' }}
-              placeholder='JSON 数组'
-            />
-          ) : (
-            agent.tags && (
-              <div className="flex flex-wrap gap-1">
-                {(() => { try { return JSON.parse(agent.tags); } catch { return []; } })().map((t: string, i: number) => (
-                  <span key={i} className="text-xs px-2 py-0.5 rounded-full bg-secondary/10 text-secondary">{t}</span>
-                ))}
-              </div>
-            )
-          )}
-        </div>
-
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-text-muted mb-1">
-            回复速度: {isEditing ? formData.response_speed.toFixed(1) : agent.response_speed.toFixed(1)}
-          </label>
-          {isEditing ? (
-            <input
-              type="range"
-              min="0.5"
-              max="2"
-              step="0.1"
-              value={formData.response_speed}
-              onChange={(e) => setFormData((prev) => ({ ...prev, response_speed: parseFloat(e.target.value) }))}
-              className="w-full"
-            />
-          ) : (
-            <div className="w-full bg-background rounded-full h-2">
-              <div
-                className="bg-primary h-2 rounded-full"
-                style={{ width: `${(agent.response_speed / 2) * 100}%` }}
-              />
+      <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1">
+        <section className="pluto-agent-panel p-4">
+          <div className="flex items-start gap-4">
+            <div className="flex h-16 w-16 items-center justify-center rounded-[22px] bg-[color-mix(in_srgb,var(--color-primary)_10%,var(--color-surface-elevated))]">
+              {createElement(avatarIcon, { size: 26, className: 'text-[--color-primary]' })}
             </div>
-          )}
-        </div>
-
-        {/* Reply Probability */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-text-muted mb-1">
-            回复概率: {isEditing ? Math.round(formData.reply_probability * 100) : Math.round(agent.reply_probability * 100)}%
-          </label>
-          {isEditing ? (
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.1"
-              value={formData.reply_probability}
-              onChange={(e) => setFormData((prev) => ({ ...prev, reply_probability: parseFloat(e.target.value) }))}
-              className="w-full"
-            />
-          ) : (
-            <div className="w-full bg-background rounded-full h-2">
-              <div
-                className="bg-secondary h-2 rounded-full"
-                style={{ width: `${agent.reply_probability * 100}%` }}
-              />
+            <div className="min-w-0 flex-1">
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(event) =>
+                    setFormData((previous) => ({ ...previous, name: event.target.value }))
+                  }
+                  className="pluto-modal-input h-11 w-full rounded-2xl px-4 text-sm outline-none"
+                />
+              ) : (
+                <h3 className="text-lg font-semibold text-[--color-text]">{agent.name}</h3>
+              )}
+              <p className="mt-2 text-sm text-[--color-text-muted]">{agent.description || '???'}</p>
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* Default Length */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-text-muted mb-1">
-            默认回复长度: {isEditing ? formData.default_length : agent.default_length}
-          </label>
-          {isEditing ? (
-            <Dropdown
-              options={LENGTH_OPTIONS}
-              value={formData.default_length}
-              onChange={(val) => setFormData((prev) => ({ ...prev, default_length: val as number }))}
-              placeholder="选择长度"
+          <div className="mt-4 grid gap-3">
+            <StatBar
+              label="????"
+              value={formData.response_speed.toFixed(1)}
+              widthClass={
+                formData.response_speed >= 1.5
+                  ? 'w-[85%]'
+                  : formData.response_speed >= 1
+                    ? 'w-[60%]'
+                    : 'w-[35%]'
+              }
             />
-          ) : (
-            <div className="flex gap-1">
-              {[1, 2, 3, 4, 5].map((level) => (
-                <div
-                  key={level}
-                  className={`flex-1 py-1 rounded text-xs text-center ${
-                    level <= agent.default_length ? 'bg-primary text-white' : 'bg-background text-text-muted'
-                  }`}
-                >
-                  {level}
+            <StatBar
+              label="????"
+              value={`${Math.round(formData.reply_probability * 100)}%`}
+              widthClass={
+                formData.reply_probability >= 0.8
+                  ? 'w-[85%]'
+                  : formData.reply_probability >= 0.5
+                    ? 'w-[60%]'
+                    : 'w-[30%]'
+              }
+            />
+          </div>
+        </section>
+
+        <section className="pluto-agent-panel p-4">
+          <SectionTitle title="?????" />
+          <div className="space-y-4">
+            <div>
+              <Dropdown
+                label="??"
+                options={modelDropdownOptions}
+                value={formData.model}
+                onChange={(value) =>
+                  setFormData((previous) => ({ ...previous, model: value as string }))
+                }
+                placeholder="????"
+              />
+              <p className="mt-2 text-xs text-[--color-text-muted]">
+                {matchedProvider ? matchedProvider.name : `???? ${providerName || '??'} Provider`}
+              </p>
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <label className="text-sm font-medium text-[--color-text]">?????</label>
+                {isEditing && (
+                  <button
+                    type="button"
+                    onClick={handleOptimizePrompt}
+                    disabled={isOptimizing || !formData.system_prompt.trim()}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-[--color-primary]/15 bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] px-3 py-2 text-xs font-medium text-[--color-primary] disabled:opacity-40"
+                  >
+                    {isOptimizing ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                    ??
+                  </button>
+                )}
+              </div>
+              {isEditing ? (
+                <textarea
+                  value={formData.system_prompt}
+                  onChange={(event) =>
+                    setFormData((previous) => ({ ...previous, system_prompt: event.target.value }))
+                  }
+                  rows={7}
+                  className="pluto-modal-textarea w-full rounded-2xl px-4 py-3 text-sm leading-7 outline-none"
+                />
+              ) : (
+                <div className="rounded-2xl pluto-modal-section px-4 py-3 text-sm leading-7 text-[--color-text-muted]">
+                  {agent.system_prompt}
                 </div>
-              ))}
+              )}
+              {optimizeError && <p className="mt-2 text-xs text-rose-300">{optimizeError}</p>}
             </div>
-          )}
-        </div>
 
-        {/* Created At */}
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-text-muted mb-1">创建时间</label>
-          <p className="text-sm text-text">
-            {new Date(agent.created_at).toLocaleDateString()}
-          </p>
-        </div>
+            {isEditing && (
+              <Dropdown
+                label="??????"
+                options={lengthOptions}
+                value={formData.default_length}
+                onChange={(value) =>
+                  setFormData((previous) => ({ ...previous, default_length: value as number }))
+                }
+                placeholder="????"
+              />
+            )}
+          </div>
+        </section>
+
+        <section className="pluto-agent-panel p-4">
+          <SectionTitle title="?????" />
+          <div className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-medium text-[--color-text]">??</label>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={formData.tags}
+                  onChange={(event) =>
+                    setFormData((previous) => ({ ...previous, tags: event.target.value }))
+                  }
+                  className="pluto-modal-input h-11 w-full rounded-2xl px-4 text-sm outline-none"
+                />
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {(tagList.length > 0 ? tagList : ['??']).map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded-full border border-[--color-primary]/15 bg-[color-mix(in_srgb,var(--color-primary)_10%,transparent)] px-3 py-1 text-xs text-[--color-primary]"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {!isEditing && skillList.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {skillList.map((skill) => (
+                  <span
+                    key={skill}
+                    className="rounded-full border border-[--color-border-light] bg-[color-mix(in_srgb,var(--color-surface-elevated)_72%,var(--color-background)_28%)] px-3 py-1 text-xs text-[--color-text]"
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
       </div>
 
-      {/* Actions */}
-      <div className="p-4 space-y-2" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-        {isEditing ? (
-          <>
+      <div className="pluto-agent-footer mt-4 px-4 py-4">
+        {showDeleteConfirm ? (
+          <div>
+            <p className="text-sm font-medium text-rose-500">?????</p>
+            <div className="mt-4 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                className="pluto-modal-secondary flex-1 rounded-2xl px-4 py-3 text-sm font-medium"
+              >
+                ??
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={isLoading}
+                className="flex-1 rounded-2xl bg-rose-500 px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
+              >
+                {isLoading ? <Loader2 size={14} className="mx-auto animate-spin" /> : '??'}
+              </button>
+            </div>
+          </div>
+        ) : isEditing ? (
+          <div className="flex gap-3">
             <button
+              type="button"
+              onClick={() => setIsEditing(false)}
+              className="pluto-modal-secondary flex-1 rounded-2xl px-4 py-3 text-sm font-medium"
+            >
+              ??
+            </button>
+            <button
+              type="button"
               onClick={handleSave}
               disabled={isLoading}
-              className="w-full py-3 bg-primary text-white rounded-lg hover:opacity-90 transition flex items-center justify-center gap-2 disabled:opacity-50 min-h-[44px]"
-              aria-label="保存修改"
+              className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-[--color-primary] px-4 py-3 text-sm font-medium text-white disabled:opacity-50"
             >
-              {isLoading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              保存修改
+              {isLoading ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+              ??
             </button>
-            <button
-              onClick={() => setIsEditing(false)}
-              className="w-full py-3 text-text-muted hover:text-text transition min-h-[44px]"
-              aria-label="取消编辑"
-            >
-              取消
-            </button>
-          </>
+          </div>
         ) : (
           <>
             <button
+              type="button"
               onClick={() => setIsEditing(true)}
-              className="w-full py-3 bg-primary text-white rounded-lg hover:opacity-90 transition flex items-center justify-center gap-2 min-h-[44px]"
-              aria-label="编辑 Agent"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[--color-primary] px-4 py-3 text-sm font-medium text-white"
             >
-              <Edit2 size={16} />
-              编辑 Agent
+              <Edit2 size={14} />
+              ??
             </button>
-            <button
-              onClick={handleToggleActive}
-              disabled={isLoading}
-              className={`w-full py-3 rounded-lg transition flex items-center justify-center gap-2 min-h-[44px] ${
-                agent.is_active
-                  ? 'bg-gray-100 text-text hover:bg-gray-200'
-                  : 'bg-green-100 text-green-600 hover:bg-green-200'
-              }`}
-              aria-label={agent.is_active ? '停用 Agent' : '启用 Agent'}
-            >
-              <Power size={16} />
-              {agent.is_active ? '停用' : '启用'}
-            </button>
-            <button
-              onClick={() => setShowDeleteConfirm(true)}
-              className="w-full py-3 text-red-500 hover:bg-red-50 rounded-lg transition flex items-center justify-center gap-2 min-h-[44px]"
-              aria-label="删除 Agent"
-            >
-              <Trash2 size={16} />
-              删除 Agent
-            </button>
+            <div className="mt-3 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => toggleActive(agent.id)}
+                disabled={isLoading}
+                className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-medium ${
+                  agent.is_active
+                    ? 'pluto-modal-secondary text-[--color-text]'
+                    : 'border border-emerald-400/20 bg-emerald-400/10 text-emerald-200'
+                }`}
+              >
+                <Power size={14} />
+                {agent.is_active ? '??' : '??'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/15 bg-rose-400/10 px-4 py-3 text-sm font-medium text-rose-200"
+              >
+                <Trash2 size={14} />
+                ??
+              </button>
+            </div>
           </>
         )}
       </div>
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteConfirm && (
-        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-          <div className="bg-surface p-6 rounded-xl shadow-xl max-w-sm">
-            <h3 className="text-lg font-semibold text-text mb-2">确认删除？</h3>
-            <p className="text-text-muted mb-4">
-              确定要删除「{agent.name}」吗？此操作无法撤销。
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowDeleteConfirm(false)}
-                className="flex-1 py-2 text-text-muted hover:text-text transition"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleDelete}
-                disabled={isLoading}
-                className="flex-1 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                {isLoading && <Loader2 size={16} className="animate-spin" />}
-                删除
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

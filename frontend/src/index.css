@@ -1,142 +1,186 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #EA7850;
-  --color-primary-light: #FFF5F0;
-  --color-secondary: #5A8EE8;
-  --color-background: #F4F1EC;
-  --color-surface: #FFFFFF;
-  --color-surface-elevated: #EBE8E2;
-  --color-text: #2C2A27;
-  --color-text-muted: #888888;
-  --color-text-subtle: #999999;
-  --color-border: rgba(0, 0, 0, 0.06);
-  --color-border-light: rgba(0, 0, 0, 0.08);
-  
-  --color-agent-1-bg: #FFF0ED;
-  --color-agent-1-border: #F4A090;
-  --color-agent-1-dot: #E8705A;
-  --color-agent-1-text: #7A2E1E;
-  
-  --color-agent-2-bg: #EDF4FF;
-  --color-agent-2-border: #90B8F4;
-  --color-agent-2-dot: #5A8EE8;
-  --color-agent-2-text: #1E3A7A;
-  
-  --color-agent-3-bg: #F0FFF0;
-  --color-agent-3-border: #90D4A0;
-  --color-agent-3-dot: #5AC870;
-  --color-agent-3-text: #1E6A2E;
-  
-  --color-agent-4-bg: #FFF8ED;
-  --color-agent-4-border: #F4C890;
-  --color-agent-4-dot: #E8A85A;
-  --color-agent-4-text: #7A4A1E;
-  
-  --color-agent-5-bg: #F5EDFF;
-  --color-agent-5-border: #C090F4;
-  --color-agent-5-dot: #9A5AE8;
-  --color-agent-5-text: #3E1E7A;
-  
-  --font-sans: 'PingFang SC', 'Noto Sans SC', 'Microsoft YaHei', system-ui, -apple-system, sans-serif;
+  --font-sans: "Inter", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif;
 }
 
-@keyframes bounce {
-  0%, 60%, 100% { transform: translateY(0); }
-  30% { transform: translateY(-6px); }
+:root,
+html[data-theme='night'],
+body[data-theme='night'] {
+  --color-primary: #f09363;
+  --color-primary-light: rgba(240, 147, 99, 0.12);
+  --color-secondary: #d6b391;
+  --color-accent: #f5c086;
+  --color-background: #121316;
+  --color-surface: #1a1c20;
+  --color-surface-elevated: #23252a;
+  --color-text: #f5f5f7;
+  --color-text-muted: #c7cad1;
+  --color-text-subtle: #8f95a2;
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-light: rgba(255, 255, 255, 0.1);
+  --app-radial: radial-gradient(circle at top, rgba(240, 147, 99, 0.08), transparent 30%);
+
+  --color-agent-1-bg: rgba(240, 147, 99, 0.14);
+  --color-agent-1-border: rgba(240, 147, 99, 0.26);
+  --color-agent-1-dot: #f09363;
+  --color-agent-1-text: #ffe1cf;
+  --color-agent-2-bg: rgba(214, 179, 145, 0.14);
+  --color-agent-2-border: rgba(214, 179, 145, 0.24);
+  --color-agent-2-dot: #d6b391;
+  --color-agent-2-text: #f7eadf;
+  --color-agent-3-bg: rgba(122, 164, 126, 0.16);
+  --color-agent-3-border: rgba(122, 164, 126, 0.24);
+  --color-agent-3-dot: #7aa47e;
+  --color-agent-3-text: #dbefdd;
+  --color-agent-4-bg: rgba(163, 118, 176, 0.16);
+  --color-agent-4-border: rgba(163, 118, 176, 0.24);
+  --color-agent-4-dot: #a376b0;
+  --color-agent-4-text: #efdff4;
+  --color-agent-5-bg: rgba(232, 177, 109, 0.16);
+  --color-agent-5-border: rgba(232, 177, 109, 0.24);
+  --color-agent-5-dot: #e8b16d;
+  --color-agent-5-text: #fff0d5;
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+html[data-theme='day'],
+body[data-theme='day'] {
+  --color-primary: #007aff;
+  --color-primary-light: rgba(0, 122, 255, 0.12);
+  --color-secondary: #6ea8ff;
+  --color-accent: #34c759;
+  --color-background: #f5f5f7;
+  --color-surface: rgba(255, 255, 255, 0.94);
+  --color-surface-elevated: rgba(255, 255, 255, 0.98);
+  --color-text: #111111;
+  --color-text-muted: #5f6672;
+  --color-text-subtle: #8f96a3;
+  --color-border: rgba(156, 163, 175, 0.16);
+  --color-border-light: rgba(156, 163, 175, 0.22);
+  --app-radial: radial-gradient(circle at top, rgba(0, 122, 255, 0.04), transparent 24%);
+
+  --color-agent-1-bg: #eef5ff;
+  --color-agent-1-border: #bed8ff;
+  --color-agent-1-dot: #007aff;
+  --color-agent-1-text: #174b8a;
+  --color-agent-2-bg: #f2f7ff;
+  --color-agent-2-border: #c8daff;
+  --color-agent-2-dot: #5b8cff;
+  --color-agent-2-text: #244d8f;
+  --color-agent-3-bg: #eefbf2;
+  --color-agent-3-border: #c9ecd3;
+  --color-agent-3-dot: #34c759;
+  --color-agent-3-text: #226436;
+  --color-agent-4-bg: #f5f1ff;
+  --color-agent-4-border: #d8ccff;
+  --color-agent-4-dot: #8e7dff;
+  --color-agent-4-text: #4b3f8f;
+  --color-agent-5-bg: #fff7eb;
+  --color-agent-5-border: #f3d6a8;
+  --color-agent-5-dot: #ff9f0a;
+  --color-agent-5-text: #845318;
 }
 
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateX(-8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+html[data-theme='soft'],
+body[data-theme='soft'] {
+  --color-primary: #e8895b;
+  --color-primary-light: rgba(232, 137, 91, 0.12);
+  --color-secondary: #d0ab84;
+  --color-accent: #efc28f;
+  --color-background: #efede7;
+  --color-surface: rgba(247, 243, 237, 0.94);
+  --color-surface-elevated: rgba(252, 248, 243, 0.9);
+  --color-text: #17171c;
+  --color-text-muted: #6f756f;
+  --color-text-subtle: #9b9f98;
+  --color-border: rgba(54, 43, 32, 0.06);
+  --color-border-light: rgba(54, 43, 32, 0.09);
+  --app-radial: radial-gradient(circle at top, rgba(232, 137, 91, 0.04), transparent 28%);
+
+  --color-agent-1-bg: #fff2eb;
+  --color-agent-1-border: #f1bfaa;
+  --color-agent-1-dot: #e8895b;
+  --color-agent-1-text: #8c4220;
+  --color-agent-2-bg: #faf3ea;
+  --color-agent-2-border: #dbc3aa;
+  --color-agent-2-dot: #c79262;
+  --color-agent-2-text: #7a522e;
+  --color-agent-3-bg: #eef6ef;
+  --color-agent-3-border: #bed2c0;
+  --color-agent-3-dot: #6fa072;
+  --color-agent-3-text: #315236;
+  --color-agent-4-bg: #f7eff9;
+  --color-agent-4-border: #d2bdd8;
+  --color-agent-4-dot: #a376b0;
+  --color-agent-4-text: #593266;
+  --color-agent-5-bg: #fff7ea;
+  --color-agent-5-border: #efd2a8;
+  --color-agent-5-dot: #d9a056;
+  --color-agent-5-text: #76491d;
 }
 
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.6;
-  }
+@keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-5px); } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+@keyframes messagePop {
+  0% { opacity: 0; transform: translateY(8px) scale(0.985); }
+  70% { opacity: 1; transform: translateY(-1px) scale(1.005); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes orbit { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes comet {
+  0% { opacity: 0; transform: translate(-8px, 4px) scale(0.96); }
+  24% { opacity: 1; }
+  100% { opacity: 0; transform: translate(16px, -8px) scale(1.02); }
 }
 
-@keyframes shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
-
-.animate-fadeIn {
-  animation: fadeIn 0.3s ease-out forwards;
-}
-
-.animate-slideIn {
-  animation: slideIn 0.25s ease-out forwards;
-}
-
-.animate-pulse {
-  animation: pulse 2s ease-in-out infinite;
-}
+.animate-fadeIn { animation: fadeIn 0.24s ease-out forwards; }
+.animate-slideIn { animation: slideIn 0.24s ease-out forwards; }
+.animate-pulse { animation: pulse 1.8s ease-in-out infinite; }
+.animate-messagePop { animation: messagePop 0.24s ease-out both; will-change: transform, opacity; }
 
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
+  *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
+
+html,
+body,
+#root { height: 100%; min-height: 100%; overflow: hidden; }
 
 body {
   margin: 0;
   font-family: var(--font-sans);
+  line-height: 1.5;
+  color: var(--color-text);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-background) 96%, #ffffff 4%) 0%, color-mix(in srgb, var(--color-background) 92%, #efe7dd 8%) 100%);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-::-webkit-scrollbar {
-  width: 6px;
-}
+button, input, textarea { font: inherit; }
+p, span, label, button, input, textarea, li { line-height: 1.5; }
+h1, h2, h3, h4, h5, h6 { line-height: 1.25; }
 
-::-webkit-scrollbar-track {
-  background: transparent;
-}
+::selection { background: color-mix(in srgb, var(--color-primary) 28%, transparent); color: #ffffff; }
+*:focus-visible { outline: 2px solid color-mix(in srgb, var(--color-primary) 70%, white 30%); outline-offset: 2px; }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.12);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.2);
-}
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--color-text) 14%, transparent); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--color-text) 22%, transparent); }
 
 input[type="range"] {
   -webkit-appearance: none;
   height: 6px;
-  border-radius: 3px;
-  background: var(--color-surface-elevated);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text) 10%, transparent);
   cursor: pointer;
 }
 
@@ -145,118 +189,881 @@ input[type="range"]::-webkit-slider-thumb {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #EA7850 0%, #E86848 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-secondary) 100%);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-primary) 18%, transparent);
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(234, 120, 80, 0.4);
-  transition: transform 0.2s ease;
 }
 
-input[type="range"]::-webkit-slider-thumb:hover {
-  transform: scale(1.1);
+.markdown-body { line-height: 1.72; word-break: break-word; }
+.markdown-body p { margin: 0 0 0.75em; }
+.markdown-body p:last-child { margin-bottom: 0; }
+.markdown-body code { background: color-mix(in srgb, var(--color-text) 8%, transparent); padding: 0.15em 0.4em; border-radius: 0.45rem; font-size: 0.9em; font-family: "Cascadia Code", "Menlo", "Consolas", monospace; }
+.markdown-body pre { background: color-mix(in srgb, var(--color-surface-elevated) 92%, #0a1020 8%); color: var(--color-text); padding: 14px 16px; border-radius: 1rem; overflow-x: auto; margin: 0.7em 0; font-size: 0.88em; line-height: 1.6; }
+.markdown-body pre code { background: none; padding: 0; }
+.markdown-body ul, .markdown-body ol { padding-left: 1.35em; margin: 0.5em 0; }
+.markdown-body li { margin: 0.2em 0; }
+.markdown-body blockquote { border-left: 3px solid color-mix(in srgb, var(--color-primary) 55%, transparent); margin: 0.8em 0; padding: 0.3em 0.85em; color: var(--color-text-muted); background: color-mix(in srgb, var(--color-text) 3%, transparent); border-radius: 0 1rem 1rem 0; }
+.markdown-body table { border-collapse: collapse; margin: 0.8em 0; font-size: 0.92em; }
+.markdown-body th, .markdown-body td { border: 1px solid var(--color-border-light); padding: 8px 12px; }
+.markdown-body th { background: color-mix(in srgb, var(--color-text) 5%, transparent); }
+.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 { margin: 0.8em 0 0.35em; font-weight: 600; color: var(--color-text); }
+.markdown-body h1 { font-size: 1.3em; }
+.markdown-body h2 { font-size: 1.16em; }
+.markdown-body h3 { font-size: 1.05em; }
+.markdown-body a { color: var(--color-primary); text-decoration: underline; }
+.markdown-body hr { border: none; border-top: 1px solid var(--color-border-light); margin: 0.9em 0; }
+
+.pluto-loader {
+  position: relative;
+  width: 72px;
+  height: 72px;
 }
 
-::selection {
-  background: rgba(234, 120, 80, 0.2);
-  color: var(--color-text);
+.pluto-loader--lg {
+  width: 84px;
+  height: 84px;
 }
 
-*:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+.pluto-loader__planet {
+  position: absolute;
+  inset: 18px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-primary) 76%, white 24%), color-mix(in srgb, var(--color-accent) 72%, white 28%));
+  box-shadow: inset 0 2px 6px rgba(255, 255, 255, 0.25), 0 8px 22px color-mix(in srgb, var(--color-primary) 14%, transparent);
 }
 
-/* Markdown body styles for agent messages */
-.markdown-body {
-  line-height: 1.65;
-  word-break: break-word;
+.pluto-loader--lg .pluto-loader__planet { inset: 21px; }
+
+.pluto-loader__ring {
+  position: absolute;
+  inset: 9px;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in srgb, var(--color-accent) 34%, transparent);
+  transform: rotate(-18deg);
+  opacity: 0.8;
 }
 
-.markdown-body p {
-  margin: 0 0 0.5em;
+.pluto-loader__orbit {
+  position: absolute;
+  inset: 0;
+  animation: orbit 3.2s linear infinite;
 }
 
-.markdown-body p:last-child {
-  margin-bottom: 0;
+.pluto-loader__rocket {
+  position: absolute;
+  left: 50%;
+  top: 3px;
+  display: flex;
+  height: 26px;
+  width: 26px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-surface-elevated) 92%, white 8%);
+  color: var(--color-primary);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--color-primary) 10%, transparent);
+  transform: translateX(-50%) rotate(18deg);
 }
 
-.markdown-body code {
-  background: rgba(0, 0, 0, 0.06);
-  padding: 0.15em 0.4em;
-  border-radius: 4px;
-  font-size: 0.9em;
-  font-family: 'Menlo', 'Consolas', monospace;
+.pluto-loader--lg .pluto-loader__rocket { height: 30px; width: 30px; }
+
+.pluto-loader__comet {
+  position: absolute;
+  right: 4px;
+  bottom: 14px;
+  width: 18px;
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--color-accent) 68%, white 32%) 100%);
+  transform-origin: left center;
+  animation: comet 1.8s ease-in-out infinite;
 }
 
-.markdown-body pre {
-  background: #1e1e2e;
-  color: #cdd6f4;
-  padding: 12px 16px;
-  border-radius: 8px;
-  overflow-x: auto;
-  margin: 0.5em 0;
-  font-size: 0.85em;
-  line-height: 1.5;
+.pluto-loader__comet::before {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent) 72%, white 28%);
 }
 
-.markdown-body pre code {
-  background: none;
-  padding: 0;
-  color: inherit;
-  font-size: inherit;
+.message-bubble--agent { transform-origin: bottom left; }
+.message-bubble--user { transform-origin: bottom right; }
+
+.pluto-main-shell {
+  background: color-mix(in srgb, var(--color-surface) 86%, var(--color-background) 14%);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
 }
 
-.markdown-body ul,
-.markdown-body ol {
-  padding-left: 1.5em;
-  margin: 0.4em 0;
+.pluto-brand-badge {
+  background: color-mix(in srgb, var(--color-primary) 14%, var(--color-surface-elevated));
+  color: var(--color-primary) !important;
+  box-shadow: none !important;
 }
 
-.markdown-body li {
-  margin: 0.2em 0;
+.pluto-nav-group,
+.pluto-rail-button,
+.pluto-profile-badge,
+.pluto-chat-header-action,
+.pluto-chat-header-fallback,
+.pluto-ios-group,
+.pluto-ios-search,
+.pluto-ios-button,
+.pluto-ios-icon-button,
+.pluto-message-composer,
+.pluto-input-menu,
+.pluto-empty-chat-card,
+.pluto-empty-state-card,
+.pluto-insights-drawer {
+  background: color-mix(in srgb, var(--color-surface-elevated) 82%, var(--color-background) 18%);
+  border: 1px solid var(--color-border-light);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.035);
 }
 
-.markdown-body blockquote {
-  border-left: 3px solid var(--color-primary);
-  margin: 0.5em 0;
-  padding: 0.25em 0.75em;
+.pluto-nav-button[data-active='true'] {
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface-elevated));
+  color: var(--color-primary);
+  box-shadow: none;
+}
+
+.pluto-nav-button[data-active='false']:hover,
+.pluto-ios-row:hover {
+  background: color-mix(in srgb, var(--color-text) 4%, var(--color-surface-elevated));
+}
+
+.pluto-session-list {
+  background: transparent;
+}
+
+.pluto-session-search,
+.pluto-ios-search {
+  box-shadow: none;
+}
+
+.pluto-session-section {
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--color-surface-elevated) 78%, var(--color-background) 22%);
+  border: 1px solid var(--color-border-light);
+  padding: 12px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.028);
+}
+
+.pluto-session-empty {
+  background: transparent;
+  box-shadow: none;
+}
+
+.pluto-session-item {
+  border-radius: 18px;
+}
+
+.pluto-session-item[data-active='true'] {
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-elevated));
+  box-shadow: none;
+}
+
+.pluto-chat-header {
+  background: color-mix(in srgb, var(--color-surface) 64%, transparent);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pluto-chat-header-action,
+.pluto-chat-header-fallback,
+.pluto-ios-icon-button {
+  box-shadow: none;
+}
+
+.pluto-chat-stream {
+  background: transparent;
+}
+
+.pluto-empty-chat-card,
+.pluto-empty-state-card {
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.message-bubble--user {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 90%, white 10%) 0%, var(--color-primary) 100%);
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+.message-bubble--agent,
+.pluto-thinking-bubble {
+  background: color-mix(in srgb, var(--color-surface-elevated) 74%, var(--color-background) 26%);
+  border: 1px solid var(--color-border-light);
+  box-shadow: 0 3px 10px rgba(15, 23, 42, 0.025);
+}
+
+.pluto-thinking-dot {
+  background: var(--color-primary);
+}
+
+.pluto-message-composer-wrap {
+  border-top-color: transparent;
+  background: linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--color-background) 68%, transparent) 100%);
+}
+
+.pluto-message-composer {
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.pluto-message-chip,
+.pluto-inline-tag {
+  border: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-surface-elevated) 96%, transparent);
   color: var(--color-text-muted);
 }
 
-.markdown-body table {
-  border-collapse: collapse;
-  margin: 0.5em 0;
-  font-size: 0.9em;
+.pluto-message-chip--accent,
+.pluto-ios-button--primary {
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface-elevated));
+  border-color: color-mix(in srgb, var(--color-primary) 16%, transparent);
+  color: var(--color-primary);
+  box-shadow: none;
 }
 
-.markdown-body th,
-.markdown-body td {
+.pluto-message-tool {
+  border-color: var(--color-border);
+  background: transparent;
+  color: var(--color-text-subtle);
+  box-shadow: none;
+}
+
+.pluto-message-textarea {
+  color: var(--color-text);
+}
+
+.pluto-message-textarea::placeholder {
+  color: var(--color-text-subtle);
+}
+
+.pluto-send-button[data-enabled='true'] {
+  border-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
+  background: var(--color-primary);
+  color: white;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+.pluto-send-button[data-enabled='false'] {
+  border-color: var(--color-border);
+  background: color-mix(in srgb, var(--color-surface-elevated) 76%, var(--color-background) 24%);
+  color: var(--color-text-subtle);
+}
+
+.pluto-input-menu {
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.08);
+}
+
+.pluto-input-menu-header {
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-subtle);
+}
+
+.pluto-input-menu-item[data-selected='true'] {
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-elevated));
+}
+
+.pluto-input-menu-item[data-selected='false']:hover {
+  background: color-mix(in srgb, var(--color-text) 4%, var(--color-surface-elevated));
+}
+
+.pluto-input-menu-icon {
   border: 1px solid var(--color-border);
-  padding: 6px 12px;
+  background: color-mix(in srgb, var(--color-surface) 96%, transparent);
+  color: var(--color-primary);
 }
 
-.markdown-body th {
-  background: var(--color-surface-elevated);
+.pluto-ios-button {
+  box-shadow: none;
 }
 
-.markdown-body h1,
-.markdown-body h2,
-.markdown-body h3,
-.markdown-body h4 {
-  margin: 0.6em 0 0.3em;
+.pluto-rail-button,
+.pluto-nav-button,
+.pluto-ios-button,
+.pluto-ios-icon-button,
+.pluto-chat-header-action,
+.pluto-chat-header-fallback,
+.pluto-dropdown-button,
+.pluto-modal-primary,
+.pluto-modal-secondary,
+.pluto-empty-state-action {
+  transition:
+    transform 180ms ease,
+    box-shadow 220ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    opacity 180ms ease;
+  will-change: transform;
+}
+
+@media (hover: hover) {
+  .pluto-rail-button:hover,
+  .pluto-nav-button:hover,
+  .pluto-ios-button:hover,
+  .pluto-ios-icon-button:hover,
+  .pluto-chat-header-action:hover,
+  .pluto-chat-header-fallback:hover,
+  .pluto-dropdown-button:hover,
+  .pluto-modal-primary:hover,
+  .pluto-modal-secondary:hover,
+  .pluto-empty-state-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  }
+
+  .pluto-ios-button--primary:hover,
+  .pluto-modal-primary:hover {
+    box-shadow: 0 14px 30px color-mix(in srgb, var(--color-primary) 18%, transparent);
+  }
+
+  .pluto-ios-icon-button:hover,
+  .pluto-chat-header-action:hover,
+  .pluto-chat-header-fallback:hover {
+    background: color-mix(in srgb, var(--color-primary) 8%, var(--color-surface-elevated));
+  }
+}
+
+.pluto-rail-button:active,
+.pluto-nav-button:active,
+.pluto-ios-button:active,
+.pluto-ios-icon-button:active,
+.pluto-chat-header-action:active,
+.pluto-chat-header-fallback:active,
+.pluto-dropdown-button:active,
+.pluto-modal-primary:active,
+.pluto-modal-secondary:active,
+.pluto-empty-state-action:active {
+  transform: scale(0.98);
+}
+
+.pluto-ios-button:focus-visible,
+.pluto-ios-icon-button:focus-visible,
+.pluto-nav-button:focus-visible,
+.pluto-rail-button:focus-visible,
+.pluto-dropdown-button:focus-visible,
+.pluto-modal-primary:focus-visible,
+.pluto-modal-secondary:focus-visible,
+.pluto-empty-state-action:focus-visible {
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-primary) 16%, transparent);
+}
+
+.pluto-ios-row {
+  transition:
+    background-color 180ms ease,
+    transform 180ms ease,
+    box-shadow 220ms ease;
+}
+
+@media (hover: hover) {
+  .pluto-ios-row:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  }
+}
+
+.pluto-insights-drawer {
+  box-shadow: none;
+}
+
+.pluto-insights-shell {
+  background: color-mix(in srgb, var(--color-surface) 90%, var(--color-background) 10%);
+  border: 1px solid var(--color-border-light);
+  box-shadow: 0 12px 34px rgba(15, 23, 42, 0.06);
+}
+
+
+
+.pluto-modal-shell {
+  background: color-mix(in srgb, var(--color-surface) 88%, var(--color-background) 12%);
+  border: 1px solid var(--color-border-light);
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+}
+
+.pluto-modal-section {
+  background: color-mix(in srgb, var(--color-surface-elevated) 82%, var(--color-background) 18%);
+  border: 1px solid var(--color-border-light);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.028);
+}
+
+.pluto-modal-input,
+.pluto-modal-textarea,
+.pluto-dropdown-button,
+.pluto-native-select {
+  background: color-mix(in srgb, var(--color-surface-elevated) 78%, var(--color-background) 22%);
+  border: 1px solid color-mix(in srgb, var(--color-border-light) 92%, transparent);
+  color: var(--color-text);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.38);
+}
+
+.pluto-dropdown-button:hover,
+.pluto-native-select:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 12%, var(--color-border-light));
+}
+
+.pluto-dropdown-button:focus-visible,
+.pluto-native-select:focus,
+.pluto-native-select:focus-visible,
+.pluto-modal-input:focus,
+.pluto-modal-input:focus-visible,
+.pluto-modal-textarea:focus,
+.pluto-modal-textarea:focus-visible {
+  border-color: color-mix(in srgb, var(--color-primary) 16%, var(--color-border-light));
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--color-primary) 12%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+.pluto-modal-input::placeholder,
+.pluto-modal-textarea::placeholder {
+  color: var(--color-text-subtle);
+}
+
+.pluto-modal-primary {
+  background: var(--color-primary);
+  color: white;
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+
+.pluto-modal-secondary {
+  background: color-mix(in srgb, var(--color-surface-elevated) 82%, var(--color-background) 18%);
+  border: 1px solid var(--color-border-light);
+  color: var(--color-text);
+}
+
+.pluto-dropdown-panel {
+  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-background) 8%);
+  border: 1px solid color-mix(in srgb, var(--color-border-light) 90%, transparent);
+  box-shadow: 0 14px 36px rgba(15, 23, 42, 0.06);
+}
+
+.pluto-dropdown-option[data-active='true'] {
+  background: color-mix(in srgb, var(--color-primary) 10%, var(--color-surface-elevated));
+  color: var(--color-text);
+}
+
+.pluto-dropdown-option[data-active='false'] {
+  color: var(--color-text-muted);
+}
+
+.pluto-dropdown-option[data-active='false']:hover {
+  background: color-mix(in srgb, var(--color-text) 4%, var(--color-surface-elevated));
+  color: var(--color-text);
+}
+
+.pluto-chat-layout {
+  background: transparent;
+}
+
+.pluto-chat-sidebar {
+  background: color-mix(in srgb, var(--color-surface-elevated) 84%, var(--color-background) 16%);
+  border-right: 1px solid var(--color-border-light);
+  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--color-text) 4%, transparent);
+}
+
+.pluto-chat-main {
+  background: color-mix(in srgb, var(--color-surface) 54%, transparent);
+}
+
+.pluto-chat-thread {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--color-surface) 12%, transparent) 0%, transparent 16%);
+}
+
+.pluto-message-row {
+  position: relative;
+}
+
+.pluto-chat-bubble {
+  position: relative;
+  border-radius: 26px;
+}
+
+.pluto-chat-bubble--user {
+  border-bottom-right-radius: 10px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 92%, white 8%) 0%, color-mix(in srgb, var(--color-primary) 100%, #d97645 0%) 100%);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--color-primary) 24%, transparent);
+}
+
+.pluto-chat-bubble--agent {
+  border: 1px solid var(--color-border-light);
+  border-bottom-left-radius: 10px;
+  background: color-mix(in srgb, var(--color-surface-elevated) 88%, var(--color-background) 12%);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.035);
+}
+
+.pluto-session-search {
+  background: color-mix(in srgb, var(--color-surface-elevated) 88%, var(--color-background) 12%);
+  border: 1px solid var(--color-border-light);
+}
+
+.pluto-session-item {
+  background: transparent;
+}
+
+.pluto-session-item[data-active='true'] {
+  background: color-mix(in srgb, var(--color-primary) 12%, var(--color-surface-elevated));
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+.pluto-session-item[data-active='false']:hover {
+  background: color-mix(in srgb, var(--color-text) 4%, var(--color-surface-elevated));
+}
+
+.pluto-insights-header {
+  background: color-mix(in srgb, var(--color-surface) 46%, transparent);
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.pluto-insights-hero {
+  background: color-mix(in srgb, var(--color-surface-elevated) 86%, var(--color-background) 14%);
+  border: 1px solid var(--color-border-light);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.035);
+}
+
+.pluto-session-item {
+  position: relative;
+  border: 1px solid transparent;
+}
+
+.pluto-session-item[data-active='true'] {
+  transform: translateX(2px);
+  border-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 13%, var(--color-surface-elevated));
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+.pluto-session-item[data-active='true']::before {
+  content: '';
+  position: absolute;
+  left: -1px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--color-primary);
+}
+
+.pluto-chat-thread,
+.pluto-chat-bubble,
+.pluto-message-textarea {
+  text-rendering: geometricPrecision;
+}
+
+.pluto-contacts-hero {
+  background: color-mix(in srgb, var(--color-surface-elevated) 82%, var(--color-background) 18%);
+  border: 1px solid var(--color-border-light);
+  border-radius: 28px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.03);
+}
+
+.pluto-chat-thread {
+  scrollbar-width: thin;
+  -ms-overflow-style: auto;
+}
+
+.pluto-chat-thread::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.pluto-chat-sidebar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.pluto-chat-sidebar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.pluto-insights-drawer {
+  scrollbar-width: thin;
+}
+
+.pluto-insights-drawer::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+
+.pluto-message-textarea:focus,
+.pluto-message-textarea:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.pluto-message-composer:focus-within {
+  border-color: color-mix(in srgb, var(--color-primary) 14%, var(--color-border-light));
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+}
+
+.pluto-settings-shell .pluto-ios-group,
+.pluto-settings-shell .pluto-ios-button,
+.pluto-settings-shell select,
+.pluto-settings-shell input,
+.pluto-contacts-shell .pluto-ios-group,
+.pluto-contacts-shell .pluto-ios-button,
+.pluto-contacts-shell .pluto-ios-search,
+.pluto-contacts-shell .pluto-ios-icon-button {
+  border-radius: 24px;
+}
+
+.pluto-settings-shell .pluto-ios-row,
+.pluto-contacts-shell .pluto-ios-row {
+  border-radius: 18px;
+}
+
+.switch {
+  font-size: 17px;
+  position: relative;
+  display: inline-block;
+  width: 3.5em;
+  height: 2em;
+  flex-shrink: 0;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #fff;
+  border: 1px solid #adb5bd;
+  transition: .4s;
+  border-radius: 30px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 1.4em;
+  width: 1.4em;
+  border-radius: 20px;
+  left: 0.27em;
+  bottom: 0.25em;
+  background-color: #adb5bd;
+  transition: .4s;
+}
+
+.switch input:checked + .slider {
+  background-color: #007bff;
+  border: 1px solid #007bff;
+}
+
+.switch input:focus + .slider {
+  box-shadow: 0 0 1px #007bff;
+}
+
+.switch input:checked + .slider:before {
+  transform: translateX(1.4em);
+  background-color: #fff;
+}
+
+.pluto-agent-shell {
+  background: color-mix(in srgb, var(--color-surface) 90%, var(--color-background) 10%);
+}
+
+.pluto-agent-header,
+.pluto-agent-footer {
+  background: color-mix(in srgb, var(--color-surface-elevated) 74%, var(--color-background) 26%);
+  border: 1px solid var(--color-border-light);
+  border-radius: 24px;
+}
+
+.pluto-agent-panel {
+  background: color-mix(in srgb, var(--color-surface-elevated) 78%, var(--color-background) 22%);
+  border: 1px solid var(--color-border-light);
+  border-radius: 24px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.03);
+}
+
+.pluto-agent-section-title {
+  color: var(--color-text);
+  font-size: 13px;
   font-weight: 600;
 }
 
-.markdown-body h1 { font-size: 1.3em; }
-.markdown-body h2 { font-size: 1.15em; }
-.markdown-body h3 { font-size: 1.05em; }
-
-.markdown-body a {
-  color: var(--color-secondary);
-  text-decoration: underline;
+.pluto-sidebar-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-.markdown-body hr {
+.pluto-sidebar-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+
+.pluto-search-form {
+  --timing: 0.3s;
+  --width-of-input: 100%;
+  --height-of-input: 40px;
+  --border-height: 2px;
+  --input-bg: #fff;
+  --border-color: #2f2ee9;
+  --border-radius: 30px;
+  --after-border-radius: 1px;
+  position: relative;
+  width: var(--width-of-input);
+  height: var(--height-of-input);
+  display: flex;
+  align-items: center;
+  padding-inline: 0.8em;
+  border-radius: var(--border-radius);
+  transition: border-radius 0.5s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  background: var(--input-bg, #fff);
+  border: 1px solid color-mix(in srgb, var(--color-text) 14%, transparent);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.65) inset, 0 0 0 1px color-mix(in srgb, var(--color-text) 3%, transparent);
+}
+
+html[data-theme='night'] .pluto-search-form {
+  --input-bg: color-mix(in srgb, var(--color-surface-elevated) 88%, var(--color-background) 12%);
+}
+
+html[data-theme='soft'] .pluto-search-form,
+html[data-theme='day'] .pluto-search-form {
+  --input-bg: color-mix(in srgb, var(--color-surface-elevated) 92%, white 8%);
+}
+
+.pluto-search-form button {
   border: none;
-  border-top: 1px solid var(--color-border);
-  margin: 0.75em 0;
+  background: none;
+  color: #8b8ba7;
 }
+
+.pluto-search-input {
+  font-size: 0.9rem;
+  background-color: transparent;
+  width: 100%;
+  height: 100%;
+  padding-inline: 0.5em;
+  padding-block: 0.7em;
+  border: none;
+}
+
+.pluto-search-form:before {
+  content: "";
+  position: absolute;
+  background: var(--border-color);
+  transform: scaleX(0);
+  transform-origin: center;
+  width: 100%;
+  height: var(--border-height);
+  left: 0;
+  bottom: 0;
+  border-radius: 1px;
+  transition: transform var(--timing) ease;
+}
+
+.pluto-search-form:focus-within {
+  border-radius: var(--after-border-radius);
+}
+
+.pluto-search-input:focus {
+  outline: none;
+}
+
+.pluto-search-form:focus-within:before {
+  transform: scale(1);
+}
+
+.pluto-search-form .reset {
+  border: none;
+  background: none;
+  transition: opacity .2s ease, visibility .2s ease;
+}
+
+.pluto-search-form svg {
+  width: 17px;
+  margin-top: 3px;
+}
+
+.pluto-send-fly {
+  font-family: inherit;
+  font-size: 15px;
+  background: royalblue;
+  color: white;
+  padding: 0.72em 1em;
+  padding-left: 0.9em;
+  display: flex;
+  align-items: center;
+  border: none;
+  border-radius: 16px;
+  overflow: hidden;
+  transition: all 0.2s;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.pluto-send-fly span {
+  display: block;
+  margin-left: 0.3em;
+  transition: all 0.3s ease-in-out;
+}
+
+.pluto-send-fly svg {
+  display: block;
+  transform-origin: center center;
+  transition: transform 0.3s ease-in-out;
+}
+
+.pluto-send-fly:hover .svg-wrapper {
+  animation: fly-1 0.6s ease-in-out infinite alternate;
+}
+
+.pluto-send-fly:hover svg {
+  transform: translateX(1.2em) rotate(45deg) scale(1.1);
+}
+
+.pluto-send-fly:hover span {
+  transform: translateX(5em);
+}
+
+.pluto-send-fly:active {
+  transform: scale(0.95);
+}
+
+.pluto-send-fly:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+@keyframes fly-1 {
+  from {
+    transform: translateY(0.1em);
+  }
+
+  to {
+    transform: translateY(-0.1em);
+  }
+}
+
+html[data-theme='day'] .pluto-search-form,
+html[data-theme='soft'] .pluto-search-form {
+  border-color: rgba(17, 24, 39, 0.12);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.8) inset, 0 0 0 1px rgba(17,24,39,0.04);
+}
+
+html[data-theme='night'] .pluto-search-form {
+  border-color: rgba(255,255,255,0.14);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset, 0 0 0 1px rgba(255,255,255,0.03);
+}
+
+.pluto-search-form:focus-within {
+  border-color: var(--border-color);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--border-color) 22%, transparent);
+}
+

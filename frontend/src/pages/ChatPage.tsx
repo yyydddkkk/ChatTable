@@ -1,19 +1,21 @@
-import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import { ChatArea } from '../components/ChatArea';
+import { ChatHeader } from '../components/ChatHeader';
+import { ConversationInsightsPanel } from '../components/ConversationInsightsPanel';
+import MessageInput from '../components/MessageInput';
+import { PlutoLoader } from '../components/PlutoLoader';
+import { WS_ENDPOINTS } from '../config/api';
 import { useAgentStore, type Agent } from '../stores/agentStore';
 import { useAuthStore } from '../stores/authStore';
 import { useConversationStore } from '../stores/conversationStore';
-import type { Conversation, Message } from '../types';
-import { ChatArea } from '../components/ChatArea';
-import MessageInput from '../components/MessageInput';
-import { ChatHeader } from '../components/ChatHeader';
-import { WS_ENDPOINTS } from '../config/api';
 import { useTenantStore } from '../stores/tenantStore';
+import type { Message } from '../types';
 
 interface ChatPageProps {
   agentId?: number;
   conversationId?: number;
   onBack?: () => void;
-  onOpenDetail?: () => void;
 }
 
 interface DispatcherSelectedAgentDetail {
@@ -65,75 +67,80 @@ interface DispatcherDebugEntry {
   type: 'summary' | 'degraded';
 }
 
-export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail }: ChatPageProps) {
+export default function ChatPage({ agentId, conversationId, onBack }: ChatPageProps) {
   const { agents } = useAgentStore();
   const accessToken = useAuthStore((state) => state.accessToken);
-  const { currentConversation, messages, setCurrentConversation, createConversation, fetchConversations, addMessage } = useConversationStore();
   const tenantId = useTenantStore((state) => state.tenantId);
+  const {
+    currentConversation,
+    messages,
+    setCurrentConversation,
+    createConversation,
+    fetchConversations,
+    addMessage,
+  } = useConversationStore();
+
   const wsRef = useRef<WebSocket | null>(null);
+  const lastInitKey = useRef('');
   const [thinkingAgents, setThinkingAgents] = useState<Set<number>>(new Set());
   const [streamingMessages, setStreamingMessages] = useState<Map<number, string>>(new Map());
-  const streamingAgentIds = useRef<Set<number>>(new Set());
   const [conversationMembers, setConversationMembers] = useState<Agent[]>([]);
   const [isGroupChat, setIsGroupChat] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [dispatchDebugEntries, setDispatchDebugEntries] = useState<DispatcherDebugEntry[]>([]);
-  const [showDispatchPanel, setShowDispatchPanel] = useState(true);
+  const [showDispatchPanel, setShowDispatchPanel] = useState(false);
+  const [showInsights, setShowInsights] = useState(false);
   const isDispatchPanelEnabled = import.meta.env.DEV;
 
-  const agent = agentId ? agents.find((a) => a.id === agentId) : null;
-  const lastInitKey = useRef<string>('');
+  const selectedAgent = agentId ? agents.find((agent) => agent.id === agentId) ?? null : null;
 
   useEffect(() => {
-    const key = `${agentId ?? ''}-${conversationId ?? ''}`;
-    if (lastInitKey.current === key) return;
-    lastInitKey.current = key;
+    const initKey = `${agentId ?? ''}-${conversationId ?? ''}`;
+    if (lastInitKey.current === initKey) return;
+    lastInitKey.current = initKey;
 
     const initConversation = async () => {
       setIsInitializing(true);
       try {
         if (conversationId) {
-          const convs = await fetchConversations();
-          const conv = convs?.find((c: Conversation) => c.id === conversationId);
-          if (conv) {
-            setCurrentConversation(conv);
-            setIsGroupChat(conv.type === 'group');
-
-            if (conv.type === 'group') {
-              try {
-                const memberIds = JSON.parse(conv.members);
-                const members = memberIds.map((id: number) => agents.find((a) => a.id === id)).filter(Boolean) as Agent[];
-                setConversationMembers(members);
-              } catch {
-                // ignore parse errors
-              }
-            }
+          const fetchedConversations = await fetchConversations();
+          const matchedConversation = fetchedConversations.find(
+            (conversation) => conversation.id === conversationId,
+          );
+          if (matchedConversation) {
+            setCurrentConversation(matchedConversation);
+            const members = JSON.parse(matchedConversation.members) as number[];
+            const matchedAgents = members
+              .map((memberId) => agents.find((agent) => agent.id === memberId))
+              .filter((entry): entry is Agent => Boolean(entry));
+            setConversationMembers(matchedAgents);
+            setIsGroupChat(matchedConversation.type === 'group');
           }
         } else if (agentId) {
-          // Check if a private conversation already exists for this agent
-          const convs = await fetchConversations();
-          const existing = convs?.find((c: Conversation) => {
-            if (c.type !== 'private') return false;
+          const fetchedConversations = await fetchConversations();
+          const existingConversation = fetchedConversations.find((conversation) => {
+            if (conversation.type !== 'private') return false;
             try {
-              const memberIds = JSON.parse(c.members);
-              return memberIds.includes(agentId);
+              return (JSON.parse(conversation.members) as number[]).includes(agentId);
             } catch {
               return false;
             }
           });
-
-          if (existing) {
-            setCurrentConversation(existing);
-          } else {
-            const agentData = agents.find((a) => a.id === agentId);
-            const conv = await createConversation({
-              type: 'private',
-              name: agentData?.name || 'Chat',
-              members: JSON.stringify([agentId]),
-            });
-            if (conv) {
-              setCurrentConversation(conv);
-            }
+          if (existingConversation) {
+            setCurrentConversation(existingConversation);
+            setConversationMembers(selectedAgent ? [selectedAgent] : []);
+            setIsGroupChat(false);
+            return;
+          }
+          const newConversation = await createConversation({
+            type: 'private',
+            name: selectedAgent?.name || 'New conversation',
+            members: JSON.stringify([agentId]),
+          });
+          if (newConversation) {
+            setCurrentConversation(newConversation);
+            setConversationMembers(selectedAgent ? [selectedAgent] : []);
+            setIsGroupChat(false);
           }
         }
       } finally {
@@ -141,369 +148,384 @@ export default function ChatPage({ agentId, conversationId, onBack, onOpenDetail
       }
     };
 
-    initConversation();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agentId, conversationId]);
+    void initConversation();
+  }, [
+    agentId,
+    agents,
+    conversationId,
+    createConversation,
+    fetchConversations,
+    selectedAgent,
+    setCurrentConversation,
+  ]);
 
   const conversationIdForWs = currentConversation?.id;
 
   useEffect(() => {
     if (!conversationIdForWs) return;
-
     const websocket = new WebSocket(
       WS_ENDPOINTS.conversation(conversationIdForWs, tenantId, accessToken ?? undefined),
     );
     wsRef.current = websocket;
 
     const handleMessage = (event: MessageEvent) => {
-      const data = JSON.parse(event.data);
-
-      if (data.type === 'ping') {
-        websocket.send(JSON.stringify({ type: 'pong' }));
-      } else if (data.type === 'user_message') {
-        useConversationStore.getState().addMessage(data.message);
-      } else if (data.type === 'agent_thinking') {
-        setThinkingAgents((prev) => new Set([...prev, data.agent_id]));
-        streamingAgentIds.current.add(data.agent_id);
-        setStreamingMessages((prev) => new Map(prev).set(data.agent_id, ''));
-      } else if (data.type === 'agent_message_chunk') {
-        setStreamingMessages((prev) => {
-          const newMap = new Map(prev);
-          const current = newMap.get(data.agent_id) || '';
-          newMap.set(data.agent_id, current + data.content);
-          return newMap;
-        });
-      } else if (data.type === 'agent_done') {
-        setThinkingAgents((prev) => {
-          const newSet = new Set(prev);
-          newSet.delete(data.agent_id);
-          return newSet;
-        });
-        streamingAgentIds.current.delete(data.agent_id);
-        if (data.error) {
-          console.error('Agent error:', data.error_message);
-        } else if (data.message) {
-          useConversationStore.getState().addMessage(data.message);
-        }
-        setStreamingMessages((prev) => {
-          const newMap = new Map(prev);
-          newMap.delete(data.agent_id);
-          return newMap;
-        });
-      } else if (data.type === 'error') {
-        console.error('WebSocket error:', data.message);
-        setThinkingAgents(new Set());
-      } else if (data.type === 'length_set') {
-        // length is now per-agent config, no local state needed
-      } else if (data.type === 'topic_switched') {
-        // Handle topic switched
-      } else if (data.type === 'cleared') {
-        useConversationStore.getState().clearMessages();
-      } else if (data.type === 'dispatcher_summary' && isDispatchPanelEnabled) {
-        const contextData = (typeof data.context === 'object' && data.context !== null)
-          ? (data.context as Record<string, unknown>)
-          : null;
-        const planData = (typeof data.plan === 'object' && data.plan !== null)
-          ? (data.plan as Record<string, unknown>)
-          : null;
-
-        const context: DispatcherContextDetail | undefined = contextData ? {
-          rawContent: typeof contextData.raw_content === 'string' ? contextData.raw_content : undefined,
-          cleanedContent: typeof contextData.cleaned_content === 'string' ? contextData.cleaned_content : undefined,
-          activeAgentIds: Array.isArray(contextData.active_agent_ids)
-            ? contextData.active_agent_ids
-                .map((item: unknown) => Number(item))
-                .filter((id: number) => !Number.isNaN(id))
-            : [],
-          mentionedIds: Array.isArray(contextData.mentioned_ids)
-            ? contextData.mentioned_ids
-                .map((item: unknown) => Number(item))
-                .filter((id: number) => !Number.isNaN(id))
-            : [],
-          missingMentionedIds: Array.isArray(contextData.missing_mentioned_ids)
-            ? contextData.missing_mentioned_ids
-                .map((item: unknown) => Number(item))
-                .filter((id: number) => !Number.isNaN(id))
-            : [],
-          isGroup: typeof contextData.is_group === 'boolean' ? contextData.is_group : undefined,
-        } : undefined;
-
-        const plan: DispatcherPlanDetail | undefined = planData ? {
-          planId: typeof planData.plan_id === 'string' ? planData.plan_id : undefined,
-          selectedAgents: Array.isArray(planData.selected_agents)
-            ? planData.selected_agents
-                .filter((item: unknown) => typeof item === 'object' && item !== null)
-                .map((item: unknown) => {
-                  const row = item as Record<string, unknown>;
-                  return {
-                    agentId: Number(row.agent_id),
-                    priority: Number(row.priority),
-                    reasonTag: typeof row.reason_tag === 'string' ? row.reason_tag : 'unknown',
-                  };
-                })
-                .filter((item: DispatcherSelectedAgentDetail) => !Number.isNaN(item.agentId))
-            : [],
-          executionGraph: Array.isArray(planData.execution_graph)
-            ? planData.execution_graph
-                .filter((item: unknown) => typeof item === 'object' && item !== null)
-                .map((item: unknown) => {
-                  const row = item as Record<string, unknown>;
-                  return {
-                    stage: Number(row.stage),
-                    mode: typeof row.mode === 'string' ? row.mode : 'parallel',
-                    agents: Array.isArray(row.agents)
-                      ? row.agents
-                          .map((agentId: unknown) => Number(agentId))
-                          .filter((agentId: number) => !Number.isNaN(agentId))
+      const data = JSON.parse(event.data) as Record<string, unknown>;
+      switch (data.type) {
+        case 'ping':
+          websocket.send(JSON.stringify({ type: 'pong' }));
+          break;
+        case 'user_message':
+          if (data.message) useConversationStore.getState().addMessage(data.message as Message);
+          break;
+        case 'agent_thinking':
+          if (typeof data.agent_id === 'number') {
+            setThinkingAgents((previous) => new Set([...previous, data.agent_id as number]));
+            setStreamingMessages((previous) => new Map(previous).set(data.agent_id as number, ''));
+          }
+          break;
+        case 'agent_message_chunk':
+          if (typeof data.agent_id === 'number' && typeof data.content === 'string') {
+            setStreamingMessages((previous) => {
+              const next = new Map(previous);
+              next.set(
+                data.agent_id as number,
+                `${next.get(data.agent_id as number) || ''}${data.content}`,
+              );
+              return next;
+            });
+          }
+          break;
+        case 'agent_done':
+          if (typeof data.agent_id === 'number') {
+            setThinkingAgents((previous) => {
+              const next = new Set(previous);
+              next.delete(data.agent_id as number);
+              return next;
+            });
+            setStreamingMessages((previous) => {
+              const next = new Map(previous);
+              next.delete(data.agent_id as number);
+              return next;
+            });
+          }
+          if (data.message) useConversationStore.getState().addMessage(data.message as Message);
+          break;
+        case 'error':
+          setThinkingAgents(new Set());
+          break;
+        case 'cleared':
+          useConversationStore.getState().clearMessages();
+          break;
+        case 'dispatcher_summary':
+          if (isDispatchPanelEnabled) {
+            const contextData =
+              typeof data.context === 'object' && data.context !== null
+                ? (data.context as Record<string, unknown>)
+                : null;
+            const planData =
+              typeof data.plan === 'object' && data.plan !== null
+                ? (data.plan as Record<string, unknown>)
+                : null;
+            const entry: DispatcherDebugEntry = {
+              type: 'summary',
+              createdAt: new Date().toISOString(),
+              context: contextData
+                ? {
+                    rawContent:
+                      typeof contextData.raw_content === 'string'
+                        ? contextData.raw_content
+                        : undefined,
+                    cleanedContent:
+                      typeof contextData.cleaned_content === 'string'
+                        ? contextData.cleaned_content
+                        : undefined,
+                    activeAgentIds: Array.isArray(contextData.active_agent_ids)
+                      ? contextData.active_agent_ids
+                          .map((item) => Number(item))
+                          .filter((id) => !Number.isNaN(id))
                       : [],
-                  };
-                })
-                .filter((item: DispatcherExecutionStageDetail) => !Number.isNaN(item.stage))
-            : [],
-          roundControl: (typeof planData.round_control === 'object' && planData.round_control !== null)
-            ? {
-                maxRounds: Number((planData.round_control as Record<string, unknown>).max_rounds),
-                triggerNextRound: Boolean((planData.round_control as Record<string, unknown>).trigger_next_round),
-                nextRoundCandidates: Array.isArray((planData.round_control as Record<string, unknown>).next_round_candidates)
-                  ? ((planData.round_control as Record<string, unknown>).next_round_candidates as unknown[])
-                      .map((item: unknown) => Number(item))
-                      .filter((id: number) => !Number.isNaN(id))
-                  : [],
-              }
-            : undefined,
-          deferredCandidates: Array.isArray(planData.deferred_candidates)
-            ? planData.deferred_candidates
-                .map((item: unknown) => Number(item))
-                .filter((id: number) => !Number.isNaN(id))
-            : [],
-        } : undefined;
-
-        const entry: DispatcherDebugEntry = {
-          type: 'summary',
-          createdAt: new Date().toISOString(),
-          context,
-          selectedAgents: Array.isArray(data.selected_agents)
-            ? data.selected_agents.map((item: unknown) => Number(item)).filter((id: number) => !Number.isNaN(id))
-            : [],
-          fallback: Boolean(data.fallback),
-          failureType: typeof data.failure_type === 'string' ? data.failure_type : undefined,
-          retryCount: typeof data.retry_count === 'number' ? data.retry_count : 0,
-          latencyMs: typeof data.latency_ms === 'number' ? data.latency_ms : 0,
-          messageId: typeof data.message_id === 'number' ? data.message_id : undefined,
-          plan,
-          plannerOutputPreview: typeof data.planner_output_preview === 'string'
-            ? data.planner_output_preview
-            : undefined,
-        };
-        setDispatchDebugEntries((prev) => [entry, ...prev].slice(0, 30));
+                    mentionedIds: Array.isArray(contextData.mentioned_ids)
+                      ? contextData.mentioned_ids
+                          .map((item) => Number(item))
+                          .filter((id) => !Number.isNaN(id))
+                      : [],
+                    missingMentionedIds: Array.isArray(contextData.missing_mentioned_ids)
+                      ? contextData.missing_mentioned_ids
+                          .map((item) => Number(item))
+                          .filter((id) => !Number.isNaN(id))
+                      : [],
+                    isGroup:
+                      typeof contextData.is_group === 'boolean'
+                        ? contextData.is_group
+                        : undefined,
+                  }
+                : undefined,
+              selectedAgents: Array.isArray(data.selected_agents)
+                ? data.selected_agents
+                    .map((item) => Number(item))
+                    .filter((id) => !Number.isNaN(id))
+                : [],
+              fallback: Boolean(data.fallback),
+              failureType:
+                typeof data.failure_type === 'string' ? data.failure_type : undefined,
+              retryCount: typeof data.retry_count === 'number' ? data.retry_count : 0,
+              latencyMs: typeof data.latency_ms === 'number' ? data.latency_ms : 0,
+              messageId: typeof data.message_id === 'number' ? data.message_id : undefined,
+              plannerOutputPreview:
+                typeof data.planner_output_preview === 'string'
+                  ? data.planner_output_preview
+                  : undefined,
+              plan: planData
+                ? {
+                    planId:
+                      typeof planData.plan_id === 'string' ? planData.plan_id : undefined,
+                    selectedAgents: Array.isArray(planData.selected_agents)
+                      ? planData.selected_agents
+                          .filter(
+                            (item): item is Record<string, unknown> =>
+                              typeof item === 'object' && item !== null,
+                          )
+                          .map((item) => ({
+                            agentId: Number(item.agent_id),
+                            priority: Number(item.priority),
+                            reasonTag:
+                              typeof item.reason_tag === 'string'
+                                ? item.reason_tag
+                                : 'unknown',
+                          }))
+                          .filter((item) => !Number.isNaN(item.agentId))
+                      : [],
+                    executionGraph: Array.isArray(planData.execution_graph)
+                      ? planData.execution_graph
+                          .filter(
+                            (item): item is Record<string, unknown> =>
+                              typeof item === 'object' && item !== null,
+                          )
+                          .map((item) => ({
+                            stage: Number(item.stage),
+                            mode:
+                              typeof item.mode === 'string' ? item.mode : 'parallel',
+                            agents: Array.isArray(item.agents)
+                              ? item.agents
+                                  .map((member) => Number(member))
+                                  .filter((id) => !Number.isNaN(id))
+                              : [],
+                          }))
+                          .filter((item) => !Number.isNaN(item.stage))
+                      : [],
+                    roundControl:
+                      typeof planData.round_control === 'object' &&
+                      planData.round_control !== null
+                        ? {
+                            maxRounds: Number(
+                              (planData.round_control as Record<string, unknown>).max_rounds,
+                            ),
+                            triggerNextRound: Boolean(
+                              (planData.round_control as Record<string, unknown>)
+                                .trigger_next_round,
+                            ),
+                            nextRoundCandidates: Array.isArray(
+                              (planData.round_control as Record<string, unknown>)
+                                .next_round_candidates,
+                            )
+                              ? (
+                                  (planData.round_control as Record<string, unknown>)
+                                    .next_round_candidates as unknown[]
+                                )
+                                  .map((item) => Number(item))
+                                  .filter((id) => !Number.isNaN(id))
+                              : [],
+                          }
+                        : undefined,
+                    deferredCandidates: Array.isArray(planData.deferred_candidates)
+                      ? planData.deferred_candidates
+                          .map((item) => Number(item))
+                          .filter((id) => !Number.isNaN(id))
+                      : [],
+                  }
+                : undefined,
+            };
+            setDispatchDebugEntries((previous) => [entry, ...previous].slice(0, 20));
+          }
+          break;
+        default:
+          break;
       }
     };
 
     websocket.addEventListener('message', handleMessage);
-
     return () => {
       websocket.removeEventListener('message', handleMessage);
       websocket.close();
       wsRef.current = null;
     };
-  }, [conversationIdForWs, tenantId, accessToken]);
+  }, [accessToken, conversationIdForWs, isDispatchPanelEnabled, tenantId]);
 
   const handleSend = useCallback((content: string) => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        type: 'user_message',
-        content,
-      }));
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'user_message', content }));
     }
   }, []);
 
-  const handleCommand = useCallback((command: string, _args: string) => {
-    if (command === 'clear' && wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type: 'clear' }));
-    } else if (command === 'help') {
-      const helpText = '鍙敤鍛戒护:\n/clear - 娓呴櫎鑱婂ぉ璁板綍\n/help - 鏄剧ず甯姪';
-      addMessage({
-        id: Date.now(),
-        conversation_id: currentConversation?.id || 0,
-        sender_type: 'agent',
-        sender_id: 0,
-        content: helpText,
-        created_at: new Date().toISOString(),
-      });
-    }
-  }, [addMessage, currentConversation]);
-
-  const getStreamingMessages = useCallback((): Message[] => {
-    const streaming: Message[] = [];
-    streamingMessages.forEach((content, agentId) => {
-      if (content) {
-        streaming.push({
-          id: -agentId,
+  const handleCommand = useCallback(
+    (command: string, args: string) => {
+      void args;
+      if (command === 'clear' && wsRef.current?.readyState === WebSocket.OPEN) {
+        wsRef.current.send(JSON.stringify({ type: 'clear' }));
+        return;
+      }
+      if (command === 'help') {
+        addMessage({
+          id: Date.now(),
           conversation_id: currentConversation?.id || 0,
           sender_type: 'agent',
-          sender_id: agentId,
-          content,
+          sender_id: 0,
+          content: ['可用命令:', '/clear - 清除聊天记录', '/help - 显示帮助'].join('\n'),
           created_at: new Date().toISOString(),
         });
       }
+    },
+    [addMessage, currentConversation],
+  );
+
+  const streamingDisplayMessages = useMemo(() => {
+    const items: Message[] = [];
+    streamingMessages.forEach((content, activeAgentId) => {
+      if (!content) return;
+      items.push({
+        id: -activeAgentId,
+        conversation_id: currentConversation?.id || 0,
+        sender_type: 'agent',
+        sender_id: activeAgentId,
+        content,
+        created_at: new Date().toISOString(),
+      });
     });
-    return streaming;
-  }, [streamingMessages, currentConversation]);
+    return items;
+  }, [currentConversation, streamingMessages]);
 
   const displayMessages = useMemo(
-    () => [...messages, ...getStreamingMessages()],
-    [messages, getStreamingMessages]
+    () => [...messages, ...streamingDisplayMessages],
+    [messages, streamingDisplayMessages],
   );
-
   const displayAgents = useMemo(
-    () => (isGroupChat && conversationMembers.length > 0
-      ? conversationMembers 
-      : (agent ? [agent] : [])),
-    [isGroupChat, conversationMembers, agent]
+    () =>
+      isGroupChat && conversationMembers.length > 0
+        ? conversationMembers
+        : selectedAgent
+          ? [selectedAgent]
+          : [],
+    [conversationMembers, isGroupChat, selectedAgent],
   );
-
-  const thinkingAgentId = thinkingAgents.size > 0 ? Array.from(thinkingAgents)[0] : undefined;
+  const thinkingAgentId =
+    thinkingAgents.size > 0 ? Array.from(thinkingAgents.values())[0] : undefined;
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 bg-[--color-background]">
-      <ChatHeader
-        agent={agent}
-        agents={displayAgents}
-        isGroup={isGroupChat}
-        onMoreClick={onOpenDetail}
-      />
+    <div className="pluto-chat-layout flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
+      <div className="pluto-chat-main flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <ChatHeader
+          agent={selectedAgent}
+          agents={displayAgents}
+          conversation={currentConversation}
+          isGroup={isGroupChat}
+          onMoreClick={() => setShowInsights(true)}
+        />
 
-      {onBack && (
-        <button
-          onClick={onBack}
-          className="absolute top-4 left-4 p-2 text-text-muted hover:text-text bg-surface rounded-lg transition z-10"
-        >
-          鈫?Back
-        </button>
+        {onBack && (
+          <button
+            type="button"
+            onClick={onBack}
+            className="absolute left-6 top-6 rounded-full border border-[--color-border] bg-[--color-surface] px-4 py-2 text-sm text-[--color-text]"
+          >
+            返回
+          </button>
+        )}
+
+        {isInitializing ? (
+          <div className="flex flex-1 items-center justify-center px-8">
+            <div className="rounded-[28px] border border-[--color-border-light] bg-[--color-surface]/80 px-8 py-7 text-center backdrop-blur-xl">
+              <PlutoLoader label="正在连接会话..." />
+            </div>
+          </div>
+        ) : (
+          <>
+            <ChatArea
+              messages={displayMessages}
+              thinkingAgentId={thinkingAgentId}
+              thinkingAgentIds={Array.from(thinkingAgents)}
+            />
+            <MessageInput
+              onSend={handleSend}
+              onCommand={handleCommand}
+              disabled={thinkingAgents.size > 0}
+              agents={isGroupChat ? displayAgents : []}
+            />
+          </>
+        )}
+      </div>
+
+      {showInsights && (
+        <>
+          <div
+            className="absolute inset-0 z-20 bg-black/8 backdrop-blur-[2px]"
+            onClick={() => setShowInsights(false)}
+          />
+          <div className="absolute inset-y-3 right-3 z-30 w-[320px] max-w-full overflow-hidden rounded-[28px] pluto-insights-shell">
+            <ConversationInsightsPanel
+              agent={selectedAgent}
+              agents={displayAgents}
+              conversation={currentConversation}
+              isGroup={isGroupChat}
+            />
+          </div>
+        </>
       )}
 
-      {isInitializing ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center">
-            <div
-              className="w-10 h-10 rounded-full mx-auto mb-3 animate-spin"
-              style={{ border: '2px solid rgba(234,120,80,0.2)', borderTopColor: 'var(--color-primary)' }}
-            />
-            <p className="text-sm text-[--color-text-muted]">姝ｅ湪杩炴帴浼氳瘽...</p>
+      {isDispatchPanelEnabled && showDispatchPanel && (
+        <div className="absolute bottom-6 right-6 z-30 w-[340px] rounded-[24px] border border-[--color-border-light] bg-[--color-surface]/92 p-4 shadow-[0_24px_60px_rgba(7,10,24,0.2)] backdrop-blur-xl">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-medium leading-6 text-[--color-text]">
+              Dispatcher Dev Panel
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowDispatchPanel(false)}
+              className="rounded-full border border-[--color-border] bg-[--color-surface-elevated] px-3 py-1 text-xs text-[--color-text-muted]"
+            >
+              Hide
+            </button>
+          </div>
+          <div className="max-h-80 space-y-3 overflow-y-auto">
+            {dispatchDebugEntries.length === 0 ? (
+              <div className="rounded-2xl bg-[--color-surface-elevated] px-3 py-3 text-sm leading-6 text-[--color-text-muted]">
+                等待调度器事件…
+              </div>
+            ) : (
+              dispatchDebugEntries.map((entry, index) => (
+                <div
+                  key={`${entry.createdAt}-${index}`}
+                  className="rounded-2xl border border-[--color-border] bg-[--color-surface-elevated] px-3 py-3 text-xs leading-5 text-[--color-text-muted]"
+                >
+                  <p className="font-medium text-[--color-text]">
+                    {entry.type === 'summary' ? 'Summary' : 'Degraded'}
+                  </p>
+                  <p className="mt-1">selected=[{entry.selectedAgents.join(', ')}]</p>
+                  <p>
+                    fallback={String(entry.fallback)} retry={entry.retryCount} latency=
+                    {entry.latencyMs}ms
+                  </p>
+                  {entry.context?.mentionedIds && (
+                    <p>mentioned=[{entry.context.mentionedIds.join(', ')}]</p>
+                  )}
+                  {entry.plan?.planId && <p>plan={entry.plan.planId}</p>}
+                  {entry.failureType && (
+                    <p className="text-amber-500">failure={entry.failureType}</p>
+                  )}
+                </div>
+              ))
+            )}
           </div>
         </div>
-      ) : (
-        <>
-          <ChatArea
-            messages={displayMessages}
-            thinkingAgentId={thinkingAgentId}
-            thinkingAgentIds={Array.from(thinkingAgents)}
-          />
-
-          <MessageInput
-            onSend={handleSend}
-            onCommand={handleCommand}
-            disabled={thinkingAgents.size > 0}
-            agents={isGroupChat ? displayAgents : []}
-          />
-
-          {isDispatchPanelEnabled && (
-            <div className="absolute right-4 bottom-4 z-20 w-80 rounded-lg border border-black/10 bg-white/95 p-3 shadow-lg">
-              <div className="mb-2 flex items-center justify-between">
-                <div className="text-xs font-semibold tracking-wide text-slate-700">
-                  Dispatcher Dev Panel
-                </div>
-                <button
-                  onClick={() => setShowDispatchPanel((prev) => !prev)}
-                  className="rounded border border-slate-200 px-2 py-0.5 text-xs text-slate-600 hover:bg-slate-100"
-                >
-                  {showDispatchPanel ? 'Hide' : 'Show'}
-                </button>
-              </div>
-
-              {showDispatchPanel && (
-                <div className="max-h-56 space-y-2 overflow-auto pr-1">
-                  {dispatchDebugEntries.length === 0 && (
-                    <div className="text-xs text-slate-500">
-                      Waiting for dispatcher events...
-                    </div>
-                  )}
-                  {dispatchDebugEntries.map((entry, index) => (
-                    <div
-                      key={`${entry.createdAt}-${entry.type}-${index}`}
-                      className="rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-xs"
-                    >
-                      <div className="font-medium text-slate-700">
-                        {entry.type === 'summary' ? 'Summary' : 'Degraded'}
-                      </div>
-                      <div className="text-slate-600">
-                        selected=[{entry.selectedAgents.join(',')}]
-                      </div>
-                      {entry.context && (
-                        <div className="text-slate-600">
-                          mentioned=[{entry.context.mentionedIds.join(',')}]
-                        </div>
-                      )}
-                      {entry.plan && (
-                        <div className="text-slate-600">
-                          plan={entry.plan.planId ?? 'unknown'}
-                        </div>
-                      )}
-                      <div className="text-slate-600">
-                        fallback={String(entry.fallback)} retry={entry.retryCount} latency={entry.latencyMs}ms
-                      </div>
-                      {entry.context && entry.context.missingMentionedIds.length > 0 && (
-                        <div className="text-amber-700">
-                          missing_mentioned=[{entry.context.missingMentionedIds.join(',')}]
-                        </div>
-                      )}
-                      {entry.plan && entry.plan.selectedAgents.length > 0 && (
-                        <div className="text-slate-600">
-                          reasons={entry.plan.selectedAgents
-                            .map((item) => `${item.agentId}:${item.reasonTag}(${item.priority})`)
-                            .join(', ')}
-                        </div>
-                      )}
-                      {entry.plan && entry.plan.executionGraph.length > 0 && (
-                        <div className="text-slate-600">
-                          graph={entry.plan.executionGraph
-                            .map((stage) => `s${stage.stage}-${stage.mode}[${stage.agents.join(',')}]`)
-                            .join(' | ')}
-                        </div>
-                      )}
-                      {entry.context?.rawContent && (
-                        <div className="text-slate-500">
-                          input={entry.context.rawContent.slice(0, 80)}
-                        </div>
-                      )}
-                      {entry.context?.cleanedContent && entry.context.cleanedContent !== entry.context.rawContent && (
-                        <div className="text-slate-500">
-                          cleaned={entry.context.cleanedContent.slice(0, 80)}
-                        </div>
-                      )}
-                      {entry.plannerOutputPreview && (
-                        <div className="text-slate-500 break-words">
-                          planner_output={entry.plannerOutputPreview}
-                        </div>
-                      )}
-                      {entry.failureType && (
-                        <div className="text-rose-700">failure={entry.failureType}</div>
-                      )}
-                      {entry.failureType === 'missing_api_key' && (
-                        <div className="text-amber-700">
-                          hint: set DISPATCHER_PLANNER_API_KEY in backend .env
-                        </div>
-                      )}
-                      {entry.messageId !== undefined && (
-                        <div className="text-slate-500">message_id={entry.messageId}</div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </>
       )}
     </div>
   );
