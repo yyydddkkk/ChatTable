@@ -2,11 +2,27 @@
 
 This file provides guidance for AI agents working on the ChatTable codebase.
 
+## Multi-Thread Collaboration
+
+All AI tools working in this repository must follow the root-level collaboration rules first:
+
+- `MULTI_THREAD_DEVELOPMENT.md`
+- `THREAD_TASK_TEMPLATE.md`
+- `INTEGRATION_CHECKLIST.md`
+
+Default collaboration policy:
+
+- Use `feature branch` as the primary collaboration unit.
+- Do not assume `git worktree` is available or required.
+- One file can only have one active writer at a time.
+- Shared file changes must go through explicit ownership or a foundation branch.
+- Final integration into `dev` is handled by the integration owner.
+
 ## Project Overview
 
 ChatTable is an AI Agent social chat application where users create AI agents as "friends" for private or group chats.
 
-- **Backend**: Python 3.10+ / FastAPI / SQLModel / SQLite / WebSocket
+- **Backend**: Python 3.10+ / FastAPI / SQLModel / PostgreSQL / Redis / WebSocket
 - **Frontend**: React 19 + TypeScript / Vite / Tailwind CSS v4 / Zustand
 
 ---
@@ -156,7 +172,7 @@ backend/
 │   ├── models/          # SQLModel models
 │   ├── services/        # Business logic
 │   └── schemas/         # Pydantic models
-└── chattable.db         # SQLite
+└── .env                 # Local environment config
 
 frontend/
 ├── src/
@@ -177,7 +193,8 @@ frontend/
 
 - **Package Managers**: `uv` for Python (NOT pip), `npm` for Node.js
 - **Tailwind v4**: Uses `@import "tailwindcss";` syntax, not `@tailwind` directives. Uses CSS variables for theming.
-- **Database**: SQLite at `backend/chattable.db` - back up before migrations
+- **Database**: PostgreSQL in WSL local development
+- **Cache**: Redis in WSL local development
 - **Hot Reload**: Backend uses uvicorn `--reload`, frontend uses Vite
 - **Testing**: Write tests for new features. Backend uses pytest, frontend uses Vitest (not yet configured).
 - **Environment**: Use `.env` files for local config, never commit secrets
