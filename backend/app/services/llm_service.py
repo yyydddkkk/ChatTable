@@ -6,12 +6,22 @@ from app.core.config import get_logger
 logger = get_logger(__name__)
 
 
+def sanitize_api_base(api_base: str | None) -> str | None:
+    """Strip surrounding whitespace and control characters from provider URLs."""
+    if api_base is None:
+        return None
+
+    sanitized = api_base.strip()
+    return sanitized or None
+
+
 def normalize_api_base(api_base: str | None) -> tuple[str | None, str | None]:
     """Normalize API base URL and determine LLM provider
 
     Returns:
         tuple of (normalized_url, custom_llm_provider)
     """
+    api_base = sanitize_api_base(api_base)
     if not api_base:
         return None, None
 

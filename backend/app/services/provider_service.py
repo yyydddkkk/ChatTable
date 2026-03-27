@@ -8,6 +8,7 @@ from app.core.audit import log_audit
 from app.core.security import security_manager
 from app.core.cache import app_cache
 from app.core.tenant import get_current_tenant_id
+from app.services.llm_service import sanitize_api_base
 
 
 class ProviderService:
@@ -28,7 +29,7 @@ class ProviderService:
             tenant_id=get_current_tenant_id(),
             name=data.name,
             api_key=security_manager.encrypt(data.api_key),
-            api_base=data.api_base,
+            api_base=sanitize_api_base(data.api_base) or "",
         )
         db.add(provider)
         db.commit()
@@ -54,6 +55,8 @@ class ProviderService:
         update_data = data.model_dump(exclude_unset=True)
         if "api_key" in update_data:
             update_data["api_key"] = security_manager.encrypt(update_data["api_key"])
+        if "api_base" in update_data:
+            update_data["api_base"] = sanitize_api_base(update_data["api_base"]) or ""
 
         for field, value in update_data.items():
             setattr(provider, field, value)
