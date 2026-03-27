@@ -1,12 +1,12 @@
-import { useEffect, useRef } from 'react';
+﻿import { useEffect, useRef } from 'react';
 import type { FC } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import type { Message } from '../types';
-import { useAgentStore, type Agent } from '../stores/agentStore';
-import { AvatarIcon, getAgentPalette } from '../lib/agentPalette';
 
-/** Strip <think>...</think> blocks from model output */
+import { useAgentStore } from '../stores/agentStore';
+import type { Message } from '../types';
+import { AgentAvatar } from './AgentAvatar';
+
 function stripThinking(text: string): string {
   return text.replace(/<think>[\s\S]*?<\/think>/g, '').replace(/<think>[\s\S]*/g, '').trim();
 }
@@ -17,198 +17,119 @@ interface ChatAreaProps {
   thinkingAgentIds?: number[];
 }
 
-export const ChatArea: FC<ChatAreaProps> = ({ messages, thinkingAgentId, thinkingAgentIds = [] }) => {
+export const ChatArea: FC<ChatAreaProps> = ({
+  messages,
+  thinkingAgentId,
+  thinkingAgentIds = [],
+}) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const prevLengthRef = useRef(0);
+  const previousLengthRef = useRef(0);
   const { agents } = useAgentStore();
 
   useEffect(() => {
-    const prevLen = prevLengthRef.current;
-    const curLen = messages.length;
-    // From 0 → N (conversation switch / initial load): jump instantly
-    // From N → N+M (new message / streaming): smooth scroll
-    const behavior = prevLen === 0 && curLen > 0 ? 'instant' : 'smooth';
+    const previousLength = previousLengthRef.current;
+    const currentLength = messages.length;
+    const behavior: ScrollBehavior = previousLength === 0 ? 'auto' : 'smooth';
     messagesEndRef.current?.scrollIntoView({ behavior });
-    prevLengthRef.current = curLen;
+    previousLengthRef.current = currentLength;
   }, [messages, thinkingAgentId, thinkingAgentIds]);
 
-  const getAgent = (agentId?: number) => {
-    return agents.find((a) => a.id === agentId);
-  };
+  const getAgent = (agentId?: number) => agents.find((agent) => agent.id === agentId);
+  const hasThinkingState = thinkingAgentId !== undefined || thinkingAgentIds.length > 0;
 
-  const isThinking = thinkingAgentId !== undefined || thinkingAgentIds.length > 0;
+  if (messages.length === 0 && !hasThinkingState) {
+    return <div className="flex-1" />;
+  }
 
   return (
-    <div 
-      className="flex-1 overflow-y-auto p-5 space-y-4"
-      style={{
-        background: 'linear-gradient(180deg, var(--color-background) 0%, #F8F5F0 100%)',
-      }}
-    >
-      {messages.map((msg) => {
-        const isUser = msg.sender_type === 'user';
-        const agent = !isUser ? getAgent(msg.sender_id) : null;
-        const palette = agent ? getAgentPalette(agent.id) : null;
+    <div className="pluto-chat-thread flex-1 overflow-y-auto px-7 py-7">
+      <div className="mx-auto flex max-w-4xl flex-col gap-6">
+        {messages.map((message) => {
+          const isUser = message.sender_type === 'user';
+          const agent = !isUser ? getAgent(message.sender_id) : null;
 
-        return (
-          <div
-            key={msg.id}
-            className="flex animate-fadeIn"
-            style={{ justifyContent: isUser ? 'flex-end' : 'flex-start' }}
-          >
+          return (
             <div
-              className="flex gap-3 max-w-[70%]"
-              style={{ flexDirection: isUser ? 'row-reverse' : 'row' }}
+              key={message.id}
+              className={`pluto-message-row flex ${isUser ? 'justify-end' : 'justify-start'}`}
             >
-              {!isUser && agent && (
-                <AgentAvatar 
-                  agent={agent} 
-                  size={36} 
-                  onClick={() => {}}
-                  className="cursor-pointer shrink-0"
+              <div
+                className={`flex gap-3 ${isUser ? 'max-w-[68%] flex-row-reverse' : 'max-w-[74%] flex-row'}`}
+              >
+                {!isUser && agent && (
+                  <AgentAvatar agent={agent} size={38} iconSize={17} className="mt-1" />
+                )}
+
+                <div className={`flex flex-col gap-2 ${isUser ? 'items-end' : 'items-start'}`}>
+                  {!isUser && agent && (
+                    <span className="px-1 text-sm font-medium text-[--color-text]">{agent.name}</span>
+                  )}
+
+                  <div
+                    className={`animate-messagePop px-5 py-4 text-[15px] leading-[1.7] ${
+                      isUser
+                        ? 'pluto-chat-bubble pluto-chat-bubble--user text-white'
+                        : 'pluto-chat-bubble pluto-chat-bubble--agent text-[--color-text]'
+                    }`}
+                  >
+                    {isUser ? (
+                      <span className="whitespace-pre-wrap">{message.content}</span>
+                    ) : (
+                      <div className="markdown-body select-text">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                          {stripThinking(message.content)}
+                        </ReactMarkdown>
+                      </div>
+                    )}
+                  </div>
+
+                  <span className="px-1 text-[11px] text-[--color-text-subtle]">
+                    {new Date(message.created_at).toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+
+        {hasThinkingState && (
+          <div className="flex justify-start animate-fadeIn">
+            <div className="flex max-w-[74%] gap-3">
+              {thinkingAgentId && getAgent(thinkingAgentId) && (
+                <AgentAvatar
+                  agent={getAgent(thinkingAgentId)!}
+                  size={38}
+                  iconSize={17}
+                  className="mt-1"
                 />
               )}
-              <div
-                className="flex flex-col"
-                style={{ 
-                  alignItems: isUser ? 'flex-end' : 'flex-start',
-                  gap: 6,
-                }}
-              >
-                {!isUser && (
-                  <span 
-                    className="text-xs font-semibold ml-1 tracking-wide"
-                    style={{ color: palette?.dot || '#888' }}
-                  >
-                    {agent?.name}
-                  </span>
-                )}
-                <div
-                  className="relative"
-                  style={isUser 
-                    ? {
-                        background: 'linear-gradient(135deg, #EA7850 0%, #E86848 100%)',
-                        color: '#fff',
-                        padding: '12px 18px',
-                        borderRadius: 20,
-                        borderTopRightRadius: 6,
-                        fontSize: 14,
-                        lineHeight: 1.65,
-                        wordBreak: 'break-word',
-                        boxShadow: '0 4px 16px rgba(234,120,80,0.25)',
-                      }
-                    : {
-                        background: '#FFFFFF',
-                        color: '#2C2A27',
-                        padding: '12px 18px',
-                        borderRadius: 20,
-                        borderTopLeftRadius: 6,
-                        fontSize: 14,
-                        lineHeight: 1.65,
-                        wordBreak: 'break-word',
-                        boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
-                        borderLeft: `4px solid ${palette?.dot || '#ccc'}`,
-                      }
-                  }
-                >
-                  {isUser ? (
-                    <span className="select-text">{msg.content}</span>
-                  ) : (
-                    <div className="select-text markdown-body">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                        {stripThinking(msg.content)}
-                      </ReactMarkdown>
-                    </div>
-                  )}
+              <div className="pluto-thinking-bubble rounded-[24px] rounded-bl-[10px] px-5 py-4">
+                <div className="flex items-center gap-3" role="status" aria-label="AI 正在思考">
+                  <div className="flex gap-1.5">
+                    {[0, 0.18, 0.36].map((delay) => (
+                      <span
+                        key={delay}
+                        className="pluto-thinking-dot h-2.5 w-2.5 rounded-full"
+                        style={{
+                          animation: 'bounce 1.2s ease-in-out infinite',
+                          animationDelay: `${delay}s`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-sm text-[--color-text-muted]">正在输入…</span>
                 </div>
-                <span 
-                  className="text-[10px] px-1"
-                  style={{ color: 'var(--color-text-subtle)' }}
-                >
-                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
               </div>
             </div>
           </div>
-        );
-      })}
+        )}
 
-      {isThinking && (
-        <div className="flex justify-start animate-fadeIn">
-          <div className="flex gap-3 max-w-[70%]">
-            {thinkingAgentId && (
-              <AgentAvatar 
-                agent={getAgent(thinkingAgentId)!} 
-                size={36} 
-                onClick={() => {}}
-              />
-            )}
-            <div
-              style={{
-                background: '#FFFFFF',
-                borderRadius: 20,
-                borderTopLeftRadius: 6,
-                padding: '14px 20px',
-                display: 'flex',
-                gap: 6,
-                alignItems: 'center',
-                boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
-              }}
-              role="status"
-              aria-label="AI 正在思考"
-            >
-              {[0, 0.15, 0.3].map((delay) => (
-                <div
-                  key={delay}
-                  style={{
-                    width: 8,
-                    height: 8,
-                    borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #EA7850 0%, #E86848 100%)',
-                    animation: 'bounce 1.2s ease-in-out infinite',
-                    animationDelay: `${delay}s`,
-                  }}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div ref={messagesEndRef} />
+        <div ref={messagesEndRef} />
+      </div>
     </div>
   );
 };
 
-interface AgentAvatarProps {
-  agent: Agent;
-  size?: number;
-  className?: string;
-  onClick?: () => void;
-}
-
-const AgentAvatar: FC<AgentAvatarProps> = ({ agent, size = 40, className = '', onClick }) => {
-  const palette = getAgentPalette(agent.id);
-  return (
-    <div
-      onClick={onClick}
-      className={className}
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size * 0.28,
-        background: palette.bg,
-        border: `2px solid ${palette.border}`,
-        overflow: 'hidden',
-        cursor: onClick ? 'pointer' : 'default',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-        transition: 'transform 0.2s ease',
-      }}
-    >
-      <AvatarIcon avatarLabel={agent.avatar} size={size * 0.5} style={{ color: palette.dot }} />
-    </div>
-  );
-};

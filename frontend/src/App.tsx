@@ -1,49 +1,77 @@
-import { useEffect, useRef, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
+
 import { MainLayout } from './components/MainLayout';
-import AgentDetailSidebar from './components/AgentDetailSidebar';
+import { PlutoLoader } from './components/PlutoLoader';
 import { SessionList } from './components/SessionList';
-import AuthPage from './pages/AuthPage';
-import ChatPage from './pages/ChatPage';
-import ContactsPage from './pages/ContactsPage';
-import SettingsPage from './pages/SettingsPage';
-import DebugPage from './pages/DebugPage';
 import { authConstants } from './lib/auth';
+import ContactsPage from './pages/ContactsPage';
+import ChatPage from './pages/ChatPage';
+import SettingsPage from './pages/SettingsPage';
 import { useAgentStore, type Agent } from './stores/agentStore';
 import { useAuthStore } from './stores/authStore';
 import { useConversationStore } from './stores/conversationStore';
 import { useProviderStore } from './stores/providerStore';
 import { useTenantStore } from './stores/tenantStore';
+import { useThemeStore } from './stores/themeStore';
+import AuthPage from './pages/AuthPage';
+import type { Conversation } from './types';
 
-interface AuthenticatedAppProps {
+type WorkspaceView = 'contacts' | 'chat' | 'settings';
+
+interface AuthenticatedWorkspaceProps {
   agents: Agent[];
+  conversations: Conversation[];
 }
 
-function AuthenticatedApp({ agents }: AuthenticatedAppProps) {
-  const [currentView, setCurrentView] = useState<'contacts' | 'chat' | 'settings' | 'debug'>('contacts');
+function WorkspaceEmptyState({ onJumpContacts }: { onJumpContacts: () => void }) {
+  return (
+    <div className="flex flex-1 items-center justify-center px-8">
+      <div className="pluto-empty-state-card max-w-md rounded-[28px] border border-[--color-border-light] bg-[--color-surface]/80 p-8 text-center shadow-[0_24px_60px_rgba(7,10,24,0.16)] backdrop-blur-xl">
+        <h2 className="text-2xl font-semibold text-[--color-text]">选择一个会话</h2>
+        <div className="mt-5 flex items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={onJumpContacts}
+            className="pluto-empty-state-action rounded-full border border-[--color-border-light] bg-[--color-surface] px-5 py-2.5 text-sm font-medium text-[--color-text] transition hover:bg-white/80"
+          >
+            去联系人页
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AuthenticatedWorkspace({ agents, conversations }: AuthenticatedWorkspaceProps) {
+  const [currentView, setCurrentView] = useState<WorkspaceView>('chat');
   const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showDetailSidebar, setShowDetailSidebar] = useState(false);
 
-  const conversations = useConversationStore((state) => state.conversations);
-  const selectAgent = useAgentStore((state) => state.selectAgent);
+  const { selectAgent } = useAgentStore();
+  const { setCurrentConversation, clearMessages } = useConversationStore();
 
-  const handleSelectAgent = (agent: Agent | null) => {
-    selectAgent(agent);
-    if (agent) {
-      setSelectedAgentId(agent.id);
-      setSelectedConversationId(null);
-      setCurrentView('chat');
-    }
-  };
-
-  const handleStartChat = (nextAgentId: number) => {
-    setSelectedAgentId(nextAgentId);
+  const handleStartChat = (agentId: number) => {
     setSelectedConversationId(null);
+    setSelectedAgentId(agentId);
     setCurrentView('chat');
   };
 
-  const activeAgent = selectedAgentId ? agents.find((item) => item.id === selectedAgentId) : null;
+  const handleSelectConversation = (conversationId: number) => {
+    setSelectedAgentId(null);
+    setSelectedConversationId(conversationId);
+    setCurrentView('chat');
+  };
+
+  useEffect(() => {
+    return () => {
+      setSelectedAgentId(null);
+      setSelectedConversationId(null);
+      selectAgent(null);
+      setCurrentConversation(null);
+      clearMessages();
+    };
+  }, [clearMessages, selectAgent, setCurrentConversation]);
 
   return (
     <MainLayout currentView={currentView} onViewChange={setCurrentView}>
@@ -53,14 +81,8 @@ function AuthenticatedApp({ agents }: AuthenticatedAppProps) {
           conversations={conversations}
           activeId={selectedAgentId}
           activeConversationId={selectedConversationId}
-          onSelectAgent={(id) => {
-            setSelectedAgentId(id);
-            setSelectedConversationId(null);
-          }}
-          onSelectConversation={(id) => {
-            setSelectedConversationId(id);
-            setSelectedAgentId(null);
-          }}
+          onSelectAgent={handleStartChat}
+          onSelectConversation={handleSelectConversation}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
         />
@@ -71,61 +93,37 @@ function AuthenticatedApp({ agents }: AuthenticatedAppProps) {
           <ChatPage
             agentId={selectedAgentId || undefined}
             conversationId={selectedConversationId || undefined}
-            onOpenDetail={() => setShowDetailSidebar(true)}
           />
         ) : (
-          <div className="flex-1 flex items-center justify-center bg-[--color-background]">
-            <div className="text-center">
-              <div className="text-6xl mb-4">??</div>
-              <h2 className="text-xl font-medium text-[--color-text]">Select a conversation to start chatting</h2>
-              <p className="text-[--color-text-muted] mt-2">Choose an agent or group from the sidebar</p>
-            </div>
-          </div>
+          <WorkspaceEmptyState onJumpContacts={() => setCurrentView('contacts')} />
         )
       ) : currentView === 'settings' ? (
         <SettingsPage />
-      ) : currentView === 'debug' ? (
-        <DebugPage />
       ) : (
-        <ContactsPage onStartChat={handleStartChat} onSelectAgent={handleSelectAgent} />
-      )}
-
-      {showDetailSidebar && activeAgent && (
-        <>
-          <div
-            className="fixed inset-0 bg-[--color-text]/30 backdrop-blur-sm z-20"
-            style={{ opacity: 1, pointerEvents: 'auto' }}
-            onClick={() => setShowDetailSidebar(false)}
-          />
-          <div
-            className="fixed top-0 right-0 bottom-0 w-[300px] bg-white z-30 flex flex-col overflow-y-auto"
-            style={{
-              transform: 'translateX(0)',
-              transition: 'transform 0.35s cubic-bezier(0.175,0.885,0.32,1.1)',
-              boxShadow: '-8px 0 32px rgba(0,0,0,0.1)',
-            }}
-          >
-            <AgentDetailSidebar agent={activeAgent} onClose={() => setShowDetailSidebar(false)} />
-          </div>
-        </>
+        <ContactsPage onStartChat={handleStartChat} />
       )}
     </MainLayout>
   );
 }
 
 function App() {
-  const { hydrateAuth, isAuthenticated, isLoading: isAuthLoading, logout } = useAuthStore();
-  const { agents, fetchAgents, selectAgent } = useAgentStore();
-  const fetchConversations = useConversationStore((state) => state.fetchConversations);
-  const setCurrentConversation = useConversationStore((state) => state.setCurrentConversation);
-  const clearMessages = useConversationStore((state) => state.clearMessages);
-  const fetchProviders = useProviderStore((state) => state.fetchProviders);
+  const [authBootstrapped, setAuthBootstrapped] = useState(false);
   const tenantId = useTenantStore((state) => state.tenantId);
-  const previousTenantIdRef = useRef<string | null>(null);
+  const { hydrateAuth, isAuthenticated, isLoading: isAuthLoading, logout } = useAuthStore();
+  const { agents, fetchAgents } = useAgentStore();
+  const { conversations, fetchConversations } = useConversationStore();
+  const { fetchProviders } = useProviderStore();
+  const { theme, hydrateTheme } = useThemeStore();
 
   useEffect(() => {
-    hydrateAuth();
-  }, [hydrateAuth]);
+    hydrateTheme();
+    void hydrateAuth().finally(() => setAuthBootstrapped(true));
+  }, [hydrateAuth, hydrateTheme]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.body.dataset.theme = theme;
+  }, [theme]);
 
   useEffect(() => {
     const handleUnauthorized = () => {
@@ -139,40 +137,18 @@ function App() {
   }, [logout]);
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      previousTenantIdRef.current = null;
-      return;
-    }
+    if (!isAuthenticated) return;
+    void fetchAgents();
+    void fetchConversations();
+    void fetchProviders();
+  }, [fetchAgents, fetchConversations, fetchProviders, isAuthenticated, tenantId]);
 
-    fetchAgents();
-    fetchConversations();
-    fetchProviders();
-  }, [isAuthenticated, tenantId, fetchAgents, fetchConversations, fetchProviders]);
-
-  useEffect(() => {
-    if (!isAuthenticated) {
-      return;
-    }
-
-    if (previousTenantIdRef.current === null) {
-      previousTenantIdRef.current = tenantId;
-      return;
-    }
-
-    if (previousTenantIdRef.current === tenantId) {
-      return;
-    }
-
-    previousTenantIdRef.current = tenantId;
-    selectAgent(null);
-    setCurrentConversation(null);
-    clearMessages();
-  }, [isAuthenticated, tenantId, selectAgent, setCurrentConversation, clearMessages]);
-
-  if (isAuthLoading) {
+  if (isAuthLoading || !authBootstrapped) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[--color-background]">
-        <div className="text-sm text-[--color-text-muted]">Loading session...</div>
+      <div className="flex min-h-screen items-center justify-center bg-[--color-background] px-6">
+        <div className="rounded-[28px] border border-[--color-border-light] bg-[--color-surface]/80 px-8 py-7 text-center shadow-[0_20px_80px_rgba(6,10,24,0.16)] backdrop-blur-xl">
+          <PlutoLoader label="载入 Pluto…" size="lg" />
+        </div>
       </div>
     );
   }
@@ -181,7 +157,8 @@ function App() {
     return <AuthPage />;
   }
 
-  return <AuthenticatedApp key={tenantId} agents={agents} />;
+  return <AuthenticatedWorkspace key={tenantId} agents={agents} conversations={conversations} />;
 }
 
 export default App;
+

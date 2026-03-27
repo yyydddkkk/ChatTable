@@ -1,9 +1,11 @@
-import type { FC } from 'react';
+﻿import type { FC } from 'react';
+import { MessageCircle } from 'lucide-react';
+
 import type { Agent } from '../stores/agentStore';
 import type { Conversation } from '../types';
-import { Search, MessageCircle } from 'lucide-react';
-import { AvatarIcon, getAgentPalette } from '../lib/agentPalette';
+import { AgentAvatar } from './AgentAvatar';
 import { GroupAvatar } from './GroupAvatar';
+import { SearchField } from './SearchField';
 
 interface SessionListProps {
   agents: Agent[];
@@ -16,6 +18,44 @@ interface SessionListProps {
   onSearchChange: (query: string) => void;
 }
 
+interface SessionItem {
+  id: number;
+  type: 'agent' | 'conversation';
+  title: string;
+  preview: string;
+  timeLabel: string;
+  isGroup: boolean;
+  members: number[];
+  agent?: Agent;
+}
+
+function parseMembers(raw: string): number[] {
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map((item) => Number(item)).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+
+function formatTimeLabel(timestamp?: string): string {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function buildConversationPreview(conversation: Conversation): string {
+  return conversation.type === 'group' ? '群聊' : '继续聊天';
+}
+
+function SectionTitle({ title }: { title: string }) {
+  return (
+    <p className="mb-3 px-2 text-xs font-medium tracking-[0.12em] text-[--color-text-subtle] uppercase">
+      {title}
+    </p>
+  );
+}
+
 export const SessionList: FC<SessionListProps> = ({
   agents,
   conversations,
@@ -26,183 +66,127 @@ export const SessionList: FC<SessionListProps> = ({
   searchQuery,
   onSearchChange,
 }) => {
-  const filteredAgents = agents.filter((agent) =>
-    agent.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    agent.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const loweredQuery = searchQuery.toLowerCase();
+  const conversationItems: SessionItem[] = conversations
+    .map((conversation) => ({
+      id: conversation.id,
+      type: 'conversation' as const,
+      title: conversation.name,
+      preview: buildConversationPreview(conversation),
+      timeLabel: formatTimeLabel(conversation.last_message_at),
+      isGroup: conversation.type === 'group',
+      members: parseMembers(conversation.members),
+    }))
+    .filter((item) => item.title.toLowerCase().includes(loweredQuery));
 
-  const sessions = [
-    ...conversations.map((conv) => {
-      const memberIds = (() => {
-        try {
-          return JSON.parse(conv.members) as number[];
-        } catch {
-          return [];
-        }
-      })();
-      return {
-        id: conv.id,
-        type: 'conversation' as const,
-        name: conv.name,
-        members: memberIds,
-        lastMsg: conv.last_message_at || '',
-        time: conv.last_message_at 
-          ? new Date(conv.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          : '',
-        isGroup: conv.type === 'group',
-      };
-    }),
-    ...filteredAgents.map((agent) => ({
+  const agentItems: SessionItem[] = agents
+    .filter((agent) =>
+      [agent.name, agent.description || '', agent.tags || '']
+        .join(' ')
+        .toLowerCase()
+        .includes(loweredQuery),
+    )
+    .map((agent) => ({
       id: agent.id,
       type: 'agent' as const,
-      name: agent.name,
-      members: [agent.id],
-      lastMsg: '还没有消息',
-      time: '',
+      title: agent.name,
+      preview: agent.description || '新对话',
+      timeLabel: '',
       isGroup: false,
+      members: [agent.id],
       agent,
-    })),
-  ];
+    }));
 
   return (
-    <aside 
-      className="w-72 flex flex-col shrink-0"
-      style={{
-        background: 'linear-gradient(180deg, #FFFFFF 0%, #FAF8F5 100%)',
-        boxShadow: '1px 0 8px rgba(0,0,0,0.04)',
-      }}
-    >
-      <div className="p-4 pb-3">
-        <div className="relative flex items-center">
-          <Search size={15} className="absolute left-3.5 text-[--color-text-muted]" />
-          <input
-            type="text"
-            placeholder="搜索会话..."
+    <aside className="pluto-session-list pluto-chat-sidebar hidden h-full min-h-0 w-[296px] shrink-0 p-4 lg:flex lg:flex-col">
+      <div className="shrink-0">
+        <p className="text-xs font-medium tracking-[0.14em] text-[--color-text-subtle] uppercase">消息</p>
+        <div className="mt-4">
+          <SearchField
             value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full bg-white border border-[--color-border-light] rounded-xl py-2.5 px-3 pl-10 text-sm text-[--color-text] outline-none transition-all duration-200 focus:border-[--color-primary] focus:ring-2 focus:ring-[--color-primary]/10"
+            onChange={onSearchChange}
+            placeholder="搜索"
           />
         </div>
       </div>
 
-      <div className="px-4 pb-2">
-        <div className="flex items-center gap-2 text-[--color-text-subtle]">
-          <MessageCircle size={14} />
-          <span className="text-xs font-medium">会话列表</span>
-          <span className="text-xs ml-auto bg-[--color-background] px-2 py-0.5 rounded-full">
-            {sessions.length}
-          </span>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto py-1 px-2">
-        {sessions.map((session) => {
-          const isAgentSession = session.type === 'agent';
-          const isConversationSession = session.type === 'conversation';
-          const isActive = (isAgentSession && activeId === session.id) || 
-                          (isConversationSession && activeConversationId === session.id);
-          
-          return (
-            <div
-              key={`${session.type}-${session.id}`}
-              onClick={() => {
-                if (session.type === 'agent') {
-                  onSelectAgent(session.id);
-                } else {
-                  onSelectConversation(session.id);
-                }
-              }}
-              className="relative flex items-center py-3 px-3 rounded-2xl cursor-pointer mb-1 transition-all duration-200 group"
-              style={{
-                background: isActive 
-                  ? 'linear-gradient(135deg, #FFFFFF 0%, #FFF8F5 100%)' 
-                  : 'transparent',
-                boxShadow: isActive 
-                  ? '0 4px 16px rgba(234,120,80,0.12), 0 1px 3px rgba(0,0,0,0.04)' 
-                  : 'none',
-              }}
-            >
-              {isActive && (
-                <span 
-                  className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 rounded-r-full"
-                  style={{ background: 'var(--color-primary)' }}
-                />
-              )}
-              {!isActive && (
-                <span 
-                  className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none"
-                  style={{ background: 'rgba(0,0,0,0.03)' }}
-                />
-              )}
-              {session.isGroup ? (
-                <GroupAvatar agents={session.members.map(id => agents.find(a => a.id === id)).filter(Boolean) as Agent[]} size={46} />
-              ) : (
-                <AgentAvatarComponent
-                  agent={
-                    session.type === 'agent'
-                      ? (session as { agent: Agent }).agent
-                      : agents.find(a => session.members.includes(a.id))!
-                  }
-                  size={46}
-                />
-              )}
-              <div className="ml-3 flex-1 min-w-0">
-                <div className="flex justify-between items-baseline">
-                  <span 
-                    className="text-sm font-semibold truncate"
-                    style={{ color: isActive ? 'var(--color-text)' : 'var(--color-text)' }}
-                  >
-                    {session.name}
-                  </span>
-                  <span 
-                    className="text-[10px] shrink-0 ml-2 px-1.5 py-0.5 rounded-md"
-                    style={{ 
-                      color: isActive ? 'var(--color-primary)' : 'var(--color-text-muted)',
-                      background: isActive ? 'rgba(234,120,80,0.1)' : 'transparent',
-                    }}
-                  >
-                    {session.time}
-                  </span>
-                </div>
-                <p 
-                  className="text-xs mt-1 overflow-hidden text-ellipsis whitespace-nowrap"
-                  style={{ color: isActive ? 'var(--color-text-muted)' : 'var(--color-text-subtle)' }}
-                >
-                  {session.lastMsg}
-                </p>
+      <div className="pluto-sidebar-scroll mt-5 min-h-0 flex-1 space-y-6 overflow-y-auto">
+        <section className="pluto-session-section">
+          <SectionTitle title="最近" />
+          <div className="space-y-2">
+            {conversationItems.length === 0 ? (
+              <div className="pluto-session-empty rounded-[20px] px-4 py-4 text-sm text-[--color-text-muted]">
+                暂无会话
               </div>
-            </div>
-          );
-        })}
+            ) : (
+              conversationItems.map((item) => {
+                const active = activeConversationId === item.id;
+                const memberAgents = item.members
+                  .map((memberId) => agents.find((agent) => agent.id === memberId))
+                  .filter((agent): agent is Agent => Boolean(agent));
+
+                return (
+                  <button
+                    key={`conversation-${item.id}`}
+                    type="button"
+                    onClick={() => onSelectConversation(item.id)}
+                    data-active={active ? 'true' : 'false'}
+                    className="pluto-session-item flex w-full items-center gap-3 rounded-[22px] px-3 py-3 text-left transition"
+                  >
+                    {item.isGroup ? (
+                      <GroupAvatar agents={memberAgents} size={44} />
+                    ) : memberAgents[0] ? (
+                      <AgentAvatar agent={memberAgents[0]} size={44} iconSize={19} />
+                    ) : (
+                      <div className="flex h-[44px] w-[44px] items-center justify-center rounded-[18px] bg-[color-mix(in_srgb,var(--color-surface-elevated)_86%,transparent)] text-[--color-primary]">
+                        <MessageCircle size={17} />
+                      </div>
+                    )}
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="truncate text-sm font-medium text-[--color-text]">{item.title}</p>
+                        {item.timeLabel && (
+                          <p className="shrink-0 text-[11px] text-[--color-text-subtle]">{item.timeLabel}</p>
+                        )}
+                      </div>
+                      <p className="mt-1 truncate text-xs text-[--color-text-muted]">{item.preview}</p>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </section>
+
+        <section className="pluto-session-section">
+          <SectionTitle title="Agent" />
+          <div className="space-y-2">
+            {agentItems.map((item) => {
+              const active = activeId === item.id;
+              return (
+                <button
+                  key={`agent-${item.id}`}
+                  type="button"
+                  onClick={() => onSelectAgent(item.id)}
+                  data-active={active ? 'true' : 'false'}
+                  className="pluto-session-item flex w-full items-center gap-3 rounded-[22px] px-3 py-3 text-left transition"
+                >
+                  {item.agent ? (
+                    <AgentAvatar agent={item.agent} size={42} iconSize={18} />
+                  ) : (
+                    <div className="h-[42px] w-[42px]" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-[--color-text]">{item.title}</p>
+                    <p className="mt-1 truncate text-xs text-[--color-text-muted]">{item.preview}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
       </div>
     </aside>
-  );
-};
-
-interface AgentAvatarComponentProps {
-  agent: Agent;
-  size?: number;
-}
-
-const AgentAvatarComponent: FC<AgentAvatarComponentProps> = ({ agent, size = 40 }) => {
-  if (!agent) return null;
-  const palette = getAgentPalette(agent.id);
-  return (
-    <div
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size * 0.28,
-        background: palette.bg,
-        border: `2px solid ${palette.border}`,
-        overflow: 'hidden',
-        flexShrink: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-      }}
-    >
-      <AvatarIcon avatarLabel={agent.avatar} size={size * 0.5} style={{ color: palette.dot }} />
-    </div>
   );
 };

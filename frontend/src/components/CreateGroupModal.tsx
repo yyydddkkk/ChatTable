@@ -1,6 +1,8 @@
-import { useState } from 'react';
-import { X, Users, Check } from 'lucide-react';
+﻿import { useState } from 'react';
+import { Check, X } from 'lucide-react';
+
 import { useAgentStore } from '../stores/agentStore';
+import { AgentAvatar } from './AgentAvatar';
 
 interface CreateGroupModalProps {
   onClose: () => void;
@@ -12,11 +14,13 @@ export default function CreateGroupModal({ onClose, onCreateGroup }: CreateGroup
   const [groupName, setGroupName] = useState('');
   const [selectedMembers, setSelectedMembers] = useState<number[]>([]);
 
+  const activeAgents = agents.filter((agent) => agent.is_active);
+
   const toggleMember = (agentId: number) => {
-    setSelectedMembers((prev) =>
-      prev.includes(agentId)
-        ? prev.filter((id) => id !== agentId)
-        : [...prev, agentId]
+    setSelectedMembers((previous) =>
+      previous.includes(agentId)
+        ? previous.filter((id) => id !== agentId)
+        : [...previous, agentId],
     );
   };
 
@@ -27,89 +31,90 @@ export default function CreateGroupModal({ onClose, onCreateGroup }: CreateGroup
     }
   };
 
-  const activeAgents = agents.filter((a) => a.is_active);
-
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-      <div className="bg-surface rounded-xl w-full max-w-md mx-4 shadow-xl">
-        <div className="flex items-center justify-between p-4" style={{ borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-          <div className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-semibold text-text">Create Group Chat</h2>
-          </div>
-          <button onClick={onClose} className="text-text-muted hover:text-text">
-            <X size={20} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20 px-4 py-8 backdrop-blur-sm">
+      <div className="w-full max-w-2xl overflow-hidden rounded-[32px] pluto-modal-shell">
+        <div className="flex items-center justify-between border-b border-[--color-border-light] px-6 py-5">
+          <h2 className="text-xl font-semibold text-[--color-text]">新群聊</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="pluto-modal-secondary flex h-10 w-10 items-center justify-center rounded-2xl"
+            aria-label="关闭群聊创建弹窗"
+          >
+            <X size={18} />
           </button>
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="grid gap-6 px-6 py-5 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
-            <label className="block text-sm font-medium text-text mb-2">Group Name</label>
+            <label className="mb-2 block text-sm font-medium text-[--color-text]">名称</label>
             <input
               type="text"
               value={groupName}
-              onChange={(e) => setGroupName(e.target.value)}
-              placeholder="Enter group name..."
-              className="w-full px-4 py-2 bg-background rounded-lg focus:outline-none"
-              style={{ border: '1px solid rgba(0,0,0,0.06)' }}
+              onChange={(event) => setGroupName(event.target.value)}
+              placeholder="输入群聊名称"
+              className="pluto-modal-input h-12 w-full rounded-2xl px-4 text-sm outline-none"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-text mb-2">
-              Select Members ({selectedMembers.length} selected)
-            </label>
-            <div className="max-h-64 overflow-y-auto space-y-2">
+            <div className="mb-2 flex items-center justify-between">
+              <label className="block text-sm font-medium text-[--color-text]">成员</label>
+              <span className="pluto-inline-tag rounded-full px-3 py-1 text-xs">
+                {selectedMembers.length}
+              </span>
+            </div>
+            <div className="max-h-[360px] space-y-3 overflow-y-auto pr-1">
               {activeAgents.length === 0 ? (
-                <p className="text-text-muted text-sm">No active agents available</p>
+                <div className="pluto-modal-section rounded-[24px] px-4 py-10 text-center text-sm text-[--color-text-muted]">
+                  没有可用 Agent
+                </div>
               ) : (
-                activeAgents.map((agent) => (
-                  <div
-                    key={agent.id}
-                    onClick={() => toggleMember(agent.id)}
-                    className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition ${
-                      selectedMembers.includes(agent.id)
-                        ? 'bg-primary/10'
-                        : 'bg-background hover:bg-background/80'
-                    }`}
-                    style={{
-                      border: selectedMembers.includes(agent.id)
-                        ? '1px solid var(--color-primary)'
-                        : '1px solid transparent',
-                    }}
-                  >
-                    <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                      <span className="text-lg">{agent.avatar || agent.name.charAt(0)}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-text truncate">{agent.name}</div>
-                      {agent.description && (
-                        <div className="text-xs text-text-muted truncate">{agent.description}</div>
+                activeAgents.map((agent) => {
+                  const selected = selectedMembers.includes(agent.id);
+                  return (
+                    <button
+                      key={agent.id}
+                      type="button"
+                      onClick={() => toggleMember(agent.id)}
+                      className={`flex w-full items-center gap-3 rounded-[24px] border px-4 py-3 text-left transition ${
+                        selected
+                          ? 'border-[--color-primary]/20 bg-[color-mix(in_srgb,var(--color-primary)_10%,var(--color-surface-elevated))]'
+                          : 'border-[--color-border-light] bg-[color-mix(in_srgb,var(--color-surface-elevated)_72%,var(--color-background)_28%)] hover:bg-[color-mix(in_srgb,var(--color-text)_4%,var(--color-surface-elevated))]'
+                      }`}
+                    >
+                      <AgentAvatar agent={agent} size={46} iconSize={20} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-medium text-[--color-text]">{agent.name}</div>
+                        <div className="mt-1 truncate text-xs text-[--color-text-muted]">
+                          {agent.description || '无简介'}
+                        </div>
+                      </div>
+                      {selected && (
+                        <span className="pluto-ios-icon-button flex h-9 w-9 items-center justify-center rounded-2xl text-[--color-primary]">
+                          <Check size={16} />
+                        </span>
                       )}
-                    </div>
-                    {selectedMembers.includes(agent.id) && (
-                      <Check className="w-5 h-5 text-primary" />
-                    )}
-                  </div>
-                ))
+                    </button>
+                  );
+                })
               )}
             </div>
           </div>
         </div>
 
-        <div className="p-4 flex justify-end gap-3" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-text-muted hover:text-text transition"
-          >
-            Cancel
+        <div className="flex items-center justify-end gap-3 border-t border-[--color-border-light] px-6 py-4">
+          <button type="button" onClick={onClose} className="pluto-modal-secondary rounded-2xl px-4 py-3 text-sm font-medium">
+            取消
           </button>
           <button
+            type="button"
             onClick={handleCreate}
             disabled={!groupName.trim() || selectedMembers.length < 2}
-            className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-opacity-90 transition disabled:opacity-50 disabled:cursor-not-allowed"
+            className="pluto-modal-primary rounded-2xl px-5 py-3 text-sm font-medium disabled:opacity-50"
           >
-            Create Group
+            创建群聊
           </button>
         </div>
       </div>
