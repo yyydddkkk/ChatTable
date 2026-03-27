@@ -182,20 +182,26 @@ cd backend
 # Install dependencies
 uv sync
 
+# Create local env file
+cp .env.example .env
+
+# Ensure PostgreSQL database exists
+createdb chattable
+
 # Run development server (hot reload)
-uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+UV_CACHE_DIR=/tmp/uv-cache uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 # Run production server
-uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
+UV_CACHE_DIR=/tmp/uv-cache uv run uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 # Lint code
-uv run ruff check .
+UV_CACHE_DIR=/tmp/uv-cache uv run ruff check .
 
 # Format code
-uv run ruff format .
+UV_CACHE_DIR=/tmp/uv-cache uv run ruff format .
 
 # Run tests
-pytest -v
+UV_CACHE_DIR=/tmp/uv-cache uv run pytest -v
 ```
 
 ### Frontend

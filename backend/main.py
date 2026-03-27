@@ -1,5 +1,16 @@
-def main():
-    print("Hello from chattable-backend!")
+import uvicorn
+
+from app.core.config import settings
+
+
+def main() -> None:
+    """Compatibility launcher for `python backend/main.py`."""
+    uvicorn.run(
+        "app.main:app",
+        host=settings.host,
+        port=settings.port,
+        reload=settings.debug,
+    )
 
 
 if __name__ == "__main__":

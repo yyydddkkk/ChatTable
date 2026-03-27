@@ -1,16 +1,28 @@
-﻿import logging
+import logging
+from pathlib import Path
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+ENV_FILE = BACKEND_ROOT / ".env"
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=ENV_FILE,
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
     app_name: str = "ChatTable"
     debug: bool = False
     host: str = "0.0.0.0"
     port: int = 8000
     encryption_key: str = "chattable-secret"
     log_level: str = "INFO"
-    database_url: str = "sqlite:///./chattable.db"
+    database_url: str = "postgresql+psycopg://postgres:postgres@localhost:5432/chattable"
     redis_url: str = "redis://localhost:6379/0"
     chat_engine: str = "legacy"
     agent_runtime_mode: str = "legacy"
@@ -31,15 +43,12 @@ class Settings(BaseSettings):
     litellm_log_level: str = "WARNING"
     openai_client_log_level: str = "WARNING"
 
-    class Config:
-        env_file = ".env"
-
 
 settings = Settings()
 
 
 def setup_logging():
-    """Configure application logging"""
+    """Configure application logging."""
     logging.basicConfig(
         level=getattr(logging, settings.log_level.upper()),
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -64,5 +73,5 @@ def setup_logging():
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Get a logger instance"""
+    """Get a logger instance."""
     return logging.getLogger(name)
